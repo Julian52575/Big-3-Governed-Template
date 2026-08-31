@@ -154,6 +154,18 @@
               fi
             fi
 
+            # --- Conventional Commits hook ------------------------------
+            # Point git at the in-repo hooks so `.githooks/commit-msg` runs
+            # (git's default .git/hooks/ is not version-controlled); it execs
+            # `.githooks/check-conventional-commit-msg`. Local feedback only --
+            # the enforced gate is the PR-title check in
+            # .github/workflows/check-conventional-commit-pr-title.yml.
+            if git rev-parse --is-inside-work-tree >/dev/null 2>&1 \
+               && [ "$(git config --local core.hooksPath 2>/dev/null || true)" != ".githooks" ]; then
+              git config --local core.hooksPath .githooks
+              echo "git: commit-msg hook enabled (.githooks -- Conventional Commits)"
+            fi
+
             echo "dev shell ready -- run 'just' to see available commands. Using $(podman --version)" | lolcat
           '';
         };

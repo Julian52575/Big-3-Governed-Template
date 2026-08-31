@@ -1,9 +1,13 @@
-# Nix + Just + Rootless Podman — The Big 3
+# Nix + Just + Rootless Podman — The Big 3, governed
 
 <img width="653" height="758" alt="Big3NixPodJust" src="https://github.com/user-attachments/assets/0044d938-f98a-44a2-9057-2fa8246e9a1a" />
 
 A GitHub **template repository**: clone it, install two dependencies, and you have a
 full multi-service dev environment identical on every (Linux) machine that can be expanded to **ANY** kind of project.  
+
+This is the **governed** variant of the **Big-3-Template**: the same
+out-of-the-box Nix + Just + rootless Podman stack, plus **repository
+governance** — See [Governance](#governance). 
 
 ## Why this stack
 
@@ -140,6 +144,40 @@ Entering the shell (`nix develop` / direnv):
    running socket or a `systemd --user podman.socket` if available, otherwise
    spawns a detached `podman system service` that is killed when the shell
    exits. Set `PODMAN_NO_SOCKET=1` to skip this (CI/headless).
+5. Points `git` at `.githooks/`, enabling the `commit-msg` hook (which execs
+   `.githooks/check-conventional-commit-msg`) that checks each message is a
+   [Conventional Commit](https://www.conventionalcommits.org/)
+   (`<type>[(scope)][!]: description`, subject lower-case, no trailing
+   period). Local feedback only — `git commit --no-verify` skips it.
+
+## Governance
+
+On top of the dev-shell stack, this template ships **repository governance**. 
+It is all standard Git/GitHub configuration, no external services needed. 
+
+### Conventional Commits
+
+Commits and PR titles follow [Conventional Commits](https://www.conventionalcommits.org/):
+`<type>[(scope)][!]: description`, with the description starting lower-case and
+carrying no trailing period. Both ends enforce the **same rule set** — the same
+type list, the same optional scope and `!`, the same subject pattern.
+
+- **Local (advisory):** the `.githooks/commit-msg` hook — auto-enabled by the
+  flake `shellHook` on `nix develop`, which points `core.hooksPath` at
+  `.githooks/` — execs `.githooks/check-conventional-commit-msg`, which rejects
+  a malformed message as you write it. Bypassable with `git commit
+  --no-verify`, so it is only a convenience.
+- **CI (enforced):** `.github/workflows/check-conventional-commit-pr-title.yml`
+  validates the **PR title** via [`amannn/action-semantic-pull-request`](https://github.com/amannn/action-semantic-pull-request).
+  On a squash merge the PR title is the commit that lands on `main`, so this is
+  the real gate. A bad title is fixed by editing it in the GitHub UI (the check
+  re-runs on `edited`) — no history rewrite.
+
+Keep the two in sync when you customise: the type list lives in both
+`.githooks/check-conventional-commit-msg` and
+`.github/workflows/check-conventional-commit-pr-title.yml`.
+
+Make your developers refer to the [Conventional Commits Cheatsheet](https://gist.github.com/qoomon/5dfcdf8eec66a051ecd85625518cfd13#commit-message-formats) or the [Official Summary](https://www.conventionalcommits.org/en/v1.0.0/#summary) for convenience. 
 
 ## Just commands
 
@@ -176,7 +214,10 @@ api/                      `backend` image source (python:slim + stdlib app.py)
   storage.conf            generated per-machine on shell entry (gitignored)
 .env.example              copy to .env
 .containerignore          build-context excludes (.dockerignore -> symlink)
-.github/workflows/ci.yml  evaluates the flake and lints the compose file
+.githooks/commit-msg           dispatcher git runs; execs the check script below
+.githooks/check-conventional-commit-msg   local Conventional Commits check (enabled by the shellHook)
+.github/workflows/ci.yml       flake eval + compose lint
+.github/workflows/check-conventional-commit-pr-title.yml  PR title must be a Conventional Commit
 ```
 
 ## Customising

@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Git runs the hook only under this exact filename. The actual check lives in
+# `check-conventional-commit-msg` so it reads as a pair with the CI workflow
+# `.github/workflows/check-conventional-commit-pr-title.yml`.
+exec "$(dirname "$0")/check-conventional-commit-msg" "$@"

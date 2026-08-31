@@ -1,0 +1,45 @@
+name: check-conventional-commit-pr-title
+
+# Validate that the pull-request title is a Conventional Commit.
+#
+# rule-for-rule identical to the local hook .githooks/check-conventional-commit-msg.
+
+on:
+  pull_request_target:
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+
+permissions:
+  pull-requests: read
+
+jobs:
+  conventional-title:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # Defaults to the Conventional Commits set; listed here to make the
+          # allowed types visible and easy to trim.
+          types: |
+            feat
+            fix
+            docs
+            style
+            refactor
+            perf
+            test
+            build
+            ci
+            chore
+            revert
+          # Forbid a capitalised first word and a trailing period in the
+          # subject. The local hook applies this exact pattern to the same
+          # substring.
+          subjectPattern: ^(?![A-Z])(?!.*\.$).+$
+          subjectPatternError: |
+            The subject "{subject}" is invalid: it must start lower-case and
+            must not end with a period.
+          # If the PR has a single commit, GitHub squashes using that commit
+          # message rather than the PR title -- validate it too.
+          validateSingleCommit: true

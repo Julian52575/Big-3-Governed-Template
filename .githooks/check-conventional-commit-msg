@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# Reject commit messages that are not Conventional Commits.
+# https://www.conventionalcommits.org/
+#
+# Invoked by the `commit-msg` dispatcher in this directory, which git runs
+# once `core.hooksPath` points at `.githooks/` (the flake shellHook does this
+# on `nix develop`). Local feedback only -- `git commit --no-verify` skips it.
+# The gate that actually protects `main` is the PR-title check in
+# .github/workflows/check-conventional-commit-pr-title.yml, and the two are
+# kept rule-for-rule identical.
+set -euo pipefail
+
+types='feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert'
+
+# Print the specific problem, then the shared help footer, and abort.
+reject() {
+  {
+    CATTOOL=$(command -v lolcat >/dev/null 2>&1 && echo lolcat || echo cat)
+    echo "✗ commit message rejected: $1" | $CATTOOL
+    echo "  invalid:    ${header:-<empty>}"
+    echo "  expected:   <type>[(scope)][!]: <description>"
+    echo '  examples:   "feat(api): add /healthz endpoint"'
+    echo '              "feat(api)!: remove /get_user_data endpoint"'
+    echo '              "fix: stop proxy crash on an empty .env"'
+    echo '              "docs!: drop the v1 setup guide"'
+    echo "  learn more:"
+    echo "              https://www.conventionalcommits.org/en/v1.0.0/#summary"
+    echo "              https://gist.github.com/qoomon/5dfcdf8eec66a051ecd85625518cfd13#commit-message-formats"
+    echo "Conventional commit rules:" | $CATTOOL
+    echo "  1. Use one of the following types:   ${types//|/, }"
+    echo " (2). Specify the scope"
+    echo "  3. Include a '!' if your commit contains a breaking change"
+    echo "  4. Write a short but meaningful description"
+    echo " (5). Add a body by leaving a blank line after the subject, or passing extra -m flags"
+  } >&2
+  exit 1
+}
+
+# First line that is not blank or a comment = the header.
+header="$(grep -vE '^[[:space:]]*(#|$)' "$1" | head -n1 || true)"
+
+# Messages git generates itself are fine as-is.
+case "$header" in
+  "Merge "* | "Revert "* | fixup!* | squash!* | "") exit 0 ;;
+esac
+
+if [[ ! "$header" =~ ^(${types})(\([^()]+\))?!?:\ .+ ]]; then
+  reject "not in '<type>[(scope)][!]: <description>' form"
+fi
+
+# Everything after the "<type>...: " prefix. These two checks mirror
+# check-conventional-commit-pr-title.yml's subjectPattern
+# (^(?![A-Z])(?!.*\.$).+$) exactly, so the local hook and the CI gate accept
+# and reject the same strings.
+subject="${header#*: }"
+
+if [[ "$subject" =~ ^[A-Z] ]]; then
+  reject "subject must start lower-case"
+fi
+
+if [[ "$subject" == *. ]]; then
+  reject "subject ends with a period; drop it"
+fi
