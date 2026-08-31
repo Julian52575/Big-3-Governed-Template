@@ -84,6 +84,7 @@ Click **“Use this template”** on GitHub (or `gh repo create <name> --templat
 cp .env.example .env          # adjust as needed
 nix develop                   # enter the dev shell (first run compiles the closure)
 just up -d                    # start the stack in the background
+scripts/apply-governance.sh                 # see Governance. UPDATE THE GITHUB REPO'S SETTINGS
 ```
 
 The stack is a Traefik `proxy` in front of two throwaway example backends —
@@ -150,6 +151,25 @@ Entering the shell (`nix develop` / direnv):
    (`<type>[(scope)][!]: description`, subject lower-case, no trailing
    period). Local feedback only — `git commit --no-verify` skips it.
 
+## Just commands
+
+| command | purpose |
+| ------- | ------- |
+| `just` | list all recipes |
+| `just up [args…]` | start the stack; pass `-d` to run detached |
+| `just down` | stop the stack, keep volumes |
+| `just rm` | stop the stack and drop its built images (next `just up` rebuilds) |
+| `just ps` | container status |
+| `just logs [svc]` | follow logs (Ctrl-C stops following, not the container) |
+| `just exec <svc> <cmd…>` | run a command in a running service container |
+| `just sh <svc>` | interactive shell in a running service container |
+| `just attach <svc>` | attach this terminal to a service's live stdio (detach: Ctrl-C or ctrl-p ctrl-q) |
+| `just nuke` | stop stack + delete its volumes and local images (asks first) |
+
+> `just up` runs `compose up` in the foreground. With `podman-compose`,
+> stopping an attached `up` with Ctrl-C can leave a runaway `podman start -a`
+> process behind — prefer `just up -d` and follow output with `just logs`.
+
 ## Governance
 
 On top of the dev-shell stack, this template ships **repository governance**. 
@@ -177,26 +197,86 @@ Keep the two in sync when you customise: the type list lives in both
 `.githooks/check-conventional-commit-msg` and
 `.github/workflows/check-conventional-commit-pr-title.yml`.
 
-Make your developers refer to the [Conventional Commits Cheatsheet](https://gist.github.com/qoomon/5dfcdf8eec66a051ecd85625518cfd13#commit-message-formats) or the [Official Summary](https://www.conventionalcommits.org/en/v1.0.0/#summary) for convenience. 
+Make your developers refer to the [Conventional Commits Cheatsheet](https://gist.github.com/qoomon/5dfcdf8eec66a051ecd85625518cfd13#commit-message-formats)   
+or the [Official Summary](https://www.conventionalcommits.org/en/v1.0.0/#summary) for convenience. 
 
-## Just commands
+### Branch ruleset & repository settings
 
-| command | purpose |
-| ------- | ------- |
-| `just` | list all recipes |
-| `just up [args…]` | start the stack; pass `-d` to run detached |
-| `just down` | stop the stack, keep volumes |
-| `just rm` | stop the stack and drop its built images (next `just up` rebuilds) |
-| `just ps` | container status |
-| `just logs [svc]` | follow logs (Ctrl-C stops following, not the container) |
-| `just exec <svc> <cmd…>` | run a command in a running service container |
-| `just sh <svc>` | interactive shell in a running service container |
-| `just attach <svc>` | attach this terminal to a service's live stdio (detach: Ctrl-C or ctrl-p ctrl-q) |
-| `just nuke` | stop stack + delete its volumes and local images (asks first) |
+The template ships prepared settings as json and a script to apply it directly:
 
-> `just up` runs `compose up` in the foreground. With `podman-compose`,
-> stopping an attached `up` with Ctrl-C can leave a runaway `podman start -a`
-> process behind — prefer `just up -d` and follow output with `just logs`.
+- **`.github/rulesets/main.json`** — the main branch ruleset, in GitHub's ruleset
+  export format.
+- **`scripts/apply-governance.sh`** — applies the ruleset *and* the repo-level
+  merge/security settings via the GitHub CLI.
+
+**Option A — one command (recommended).** With [`gh`](https://cli.github.com/)
+authenticated as an admin of the new repo:
+
+```bash
+scripts/apply-governance.sh                 # current repo
+scripts/apply-governance.sh owner/name      # or an explicit repo
+```
+
+Re-running is safe: it deletes the old `Auto Big-3-Governance main ruleset` ruleset and recreates it, then
+re-applies the same settings. 
+You can access the settings/rules page to delete the rule at anytime. 
+
+**Option B — GitHub UI.** Import the ruleset by hand:
+*Settings → Rules → Rulesets → New ruleset → Import a ruleset* → pick
+`.github/rulesets/main.json`. Then set the merge and security items from the
+checklist below yourself.
+
+#### What gets configured
+
+**Ruleset on the default branch** (`.github/rulesets/main.json`):
+
+| Rule | Value | Why |
+| ---- | ----- | --- |
+| Require a pull request | 1 approval, dismiss stale approvals on push | no direct pushes to `main` |
+| Require review from Code Owners | on | routes review to owners once you add a `CODEOWNERS` file |
+| Require conversation resolution | on | no merging over unresolved threads |
+| Require status checks | `ci-required`, `conventional-title`, strict (branch up to date) | `main` only ever sees green, rebased commits |
+| Require linear history | on | pairs with squash-only merges — readable `main` |
+| Block force pushes | on | history on `main` is append-only |
+| Restrict deletions | on | `main` can't be deleted |
+| Bypass list | empty | the rules apply to everyone, admins included |
+
+> The status-check names are job IDs in the workflows. `ci-required` is an
+> aggregator job in `.github/workflows/ci.yml` that `needs` every other job in
+> that workflow, so the ruleset names one stable check instead of each job —
+> add a job to its `needs` list to make it required. `conventional-title` is the
+> job in `.github/workflows/check-conventional-commit-pr-title.yml`. Renaming a
+> job that `ci-required` lists fails the workflow loudly; only `ci-required` and
+> `conventional-title` themselves must stay in sync with `main.json`.
+
+**Repository merge settings** (set by the script; *Settings → General → Pull
+Requests* in the UI):
+
+| Setting | Value | Why |
+| ------- | ----- | --- |
+| Allow squash merging | on, **commit title = PR title** | the Conventional-Commit PR title becomes the commit on `main` |
+| Allow merge commits | off | one commit per PR, no merge bubbles |
+| Allow rebase merging | off | keeps squash as the only path |
+| Automatically delete head branches | on | no stale branch buildup |
+| Always suggest updating branches | on | fewer “branch out of date” stalls |
+| Allow auto-merge | on | queue a PR to merge itself once checks pass |
+
+**Security settings** (set by the script; *Settings → Code security* in the UI):
+
+| Setting | Notes |
+| ------- | ----- |
+| Dependabot alerts + automated security fixes | free on every repo |
+| Secret scanning + push protection | free on **public** repos; private needs GitHub Advanced Security |
+| Private vulnerability reporting | free on every repo |
+
+The script treats the security calls as best-effort — on a plan that doesn't
+include one it prints a warning and moves on.
+
+#### BONUS: Org-level (can't be scripted per-repo)
+
+Set these once for the organisation, not the repo:  
+**require 2FA for all members**, and under *Actions → General* set **fork pull request workflows** to
+require approval and **workflow permissions** to read-only by default.
 
 ## Layout
 
@@ -216,8 +296,10 @@ api/                      `backend` image source (python:slim + stdlib app.py)
 .containerignore          build-context excludes (.dockerignore -> symlink)
 .githooks/commit-msg           dispatcher git runs; execs the check script below
 .githooks/check-conventional-commit-msg   local Conventional Commits check (enabled by the shellHook)
-.github/workflows/ci.yml       flake eval + compose lint
+.github/workflows/ci.yml       flake eval + compose lint; `ci-required` aggregator gate
 .github/workflows/check-conventional-commit-pr-title.yml  PR title must be a Conventional Commit
+.github/rulesets/main.json     default-branch ruleset, in GitHub export format
+scripts/apply-governance.sh    apply the ruleset + merge/security settings via `gh`
 ```
 
 ## Customising

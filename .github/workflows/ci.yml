@@ -26,3 +26,17 @@ jobs:
             podman --version
             podman-compose -f docker-compose.yml config >/dev/null
           '
+
+  # Single stable check for the branch ruleset to require.
+  # Add a job to `needs` here to make it mandatory to the branch ruleset.
+  ci-required:
+    if: always()
+    needs: [devshell]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every required job passed
+        run: |
+          if printf '%s\n' '${{ join(needs.*.result, ' ') }}' | grep -Eqw 'failure|cancelled'; then
+            echo "a required job did not succeed: ${{ join(needs.*.result, ', ') }}"
+            exit 1
+          fi
