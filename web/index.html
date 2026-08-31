@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nix + Podman + Just template</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body {
+      font: 16px/1.5 system-ui, sans-serif;
+      max-width: 40rem; margin: 4rem auto; padding: 0 1.5rem;
+    }
+    h1 { font-size: 1.4rem; }
+    button, input {
+      font: inherit; padding: .4rem .9rem; border-radius: .4rem;
+      border: 1px solid currentColor; background: transparent;
+    }
+    button { cursor: pointer; }
+    input { width: 10rem; }
+    .row { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+    .row code { opacity: .6; }
+    pre {
+      background: rgba(127,127,127,.15); padding: 1rem; border-radius: .5rem;
+      overflow-x: auto;
+    }
+    .muted { opacity: .6; }
+  </style>
+</head>
+<body>
+  <h1>web &rarr; Traefik &rarr; backend</h1>
+  <p class="muted">
+    This page is served by nginx (<code>web</code>). The button fetches
+    <code>/api/&lt;path&gt;</code>, which Traefik strips to <code>/&lt;path&gt;</code>
+    and routes to the <code>backend</code> container.
+  </p>
+  <p class="row">
+    <button id="call">GET</button>
+    <code>/api/</code>
+    <input id="path" value="hello" aria-label="API path">
+  </p>
+  <pre id="out">(nothing yet)</pre>
+
+  <script>
+    const out = document.getElementById("out");
+    const pathInput = document.getElementById("path");
+
+    async function call() {
+      const path = pathInput.value.replace(/^\/+/, "");
+      out.textContent = "loading GET /api/" + path + " ...";
+      try {
+        const res = await fetch("/api/" + path);
+        out.textContent = res.status + " " + res.statusText + "\n\n"
+          + JSON.stringify(await res.json(), null, 2);
+      } catch (err) {
+        out.textContent = "request failed: " + err;
+      }
+    }
+
+    document.getElementById("call").addEventListener("click", call);
+    pathInput.addEventListener("keydown", (e) => { if (e.key === "Enter") call(); });
+  </script>
+</body>
+</html>

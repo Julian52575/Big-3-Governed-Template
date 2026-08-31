@@ -1,0 +1,16 @@
+# --- rootless Podman (see flake.nix) ---------------------------------
+# Per-machine container storage and the storage.conf generated for it on
+# every shell entry. containers.conf / registries.conf / policy.json under
+# .config/podman/ ARE tracked -- they're real project config.
+/.containers/
+.config/podman/storage.conf
+
+# --- local environment ----------------------------------------------
+.env
+
+# --- direnv -------------------------------------------------------
+.direnv/
+
+# --- nix --------------------------------------------------------
+result
+result-*

@@ -1,0 +1,10 @@
+# Keep image build contexts small. Symlinked to .dockerignore for tools
+# that only look for that name.
+.git
+.github
+.direnv
+.containers
+.env
+.env.example
+*.md
+LICENSE
