@@ -19,6 +19,7 @@
 #   - Dependabot alerts + automated security fixes
 #   - secret scanning + push protection      (public repo, or private with GHAS)
 #   - private vulnerability reporting
+#   - issue labels referenced by .github/ISSUE_TEMPLATE/*.yml
 #
 # Security-scanning calls are best-effort: on a plan that does not include them
 # the API returns an error, the script warns and continues.
@@ -73,4 +74,20 @@ try gh api --method PATCH "repos/$repo" \
 echo "==> Private vulnerability reporting"
 try gh api --method PUT "repos/$repo/private-vulnerability-reporting"
 
-echo "==> Done. Review at: https://github.com/$repo/settings/rules"
+echo "==> Issue labels (referenced by .github/ISSUE_TEMPLATE/*.yml)"
+# --force updates the colour/description if the label already exists.
+gh label create feature      -R "$repo" --force -c '#0E8A16' -d 'New capability or enhancement'
+gh label create bug          -R "$repo" --force -c '#D73A4A' -d 'Incorrect behaviour'
+gh label create debt         -R "$repo" --force -c '#FBCA04' -d 'Works, but the design or code needs paying down'
+gh label create research     -R "$repo" --force -c '#5319E7' -d 'R&D spike or open design question'
+gh label create needs-triage -R "$repo" --force -c '#BFDADC' -d 'Awaiting maintainer review'
+
+CATTOOL=$(command -v lolcat >/dev/null 2>&1 && echo lolcat || echo cat)
+
+echo
+echo "==> Done. Review at: https://github.com/$repo/settings/rules" | $CATTOOL
+echo
+echo "    Manual follow-up:" | $CATTOOL
+echo "    edit .github/ISSUE_TEMPLATE/config.yml and replace" 
+echo "    OWNER/REPO in the contact_links URLs with this repository (and add the"
+echo "    Discussions link if you enable Discussions)."

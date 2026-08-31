@@ -1,0 +1,44 @@
+name: Feature
+description: Propose a new capability or an enhancement to an existing one
+title: "[Feature] "
+labels: ["feature", "needs-triage"]
+body:
+  - type: checkboxes
+    attributes:
+      label: Pre-submit
+      options:
+        - label: I searched open and closed issues and this is not a duplicate
+          required: true
+
+  - type: textarea
+    attributes:
+      label: Problem
+      description: What can't you do today, or what is harder than it should be? Describe the need, not the solution.
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Proposed solution
+      description: What should change from a user's point of view.
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Alternatives considered
+      description: Other approaches you weighed, and why you set them aside.
+    validations:
+      required: false
+
+  - type: dropdown
+    attributes:
+      label: Rough scope
+      description: Best guess.
+      options:
+        - Tiny -- minutes
+        - Small -- hours
+        - Medium -- days
+        - Large -- weeks, needs breaking down
+    validations:
+      required: false

@@ -1,0 +1,54 @@
+name: Bug
+description: Incorrect behaviour in existing functionality
+title: "[Bug] "
+labels: ["bug", "needs-triage"]
+body:
+  - type: checkboxes
+    attributes:
+      label: Pre-submit
+      options:
+        - label: I searched open and closed issues and this is not a duplicate
+          required: true
+        - label: I can reproduce this on the latest `main`
+          required: true
+
+  - type: textarea
+    attributes:
+      label: What's wrong
+      description: The incorrect behaviour, in one or two sentences.
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Steps to reproduce
+      description: Numbered, starting from a clean checkout.
+      placeholder: |
+        1. nix develop
+        2. just up -d
+        3. curl localhost:8000/api/hello
+        4. ...
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Expected vs actual
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Environment
+      description: ref to find the Flake.nix that built the faulting project:  `git rev-parse HEAD`.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Logs
+      description: Relevant output -- `just logs`, a CI run link, a stack trace.
+      render: shell
+    validations:
+      required: false

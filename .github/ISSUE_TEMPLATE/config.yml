@@ -1,0 +1,13 @@
+# Only the three forms below may be used to open an issue -- no blank issues.
+blank_issues_enabled: false
+
+contact_links:
+  # SECURITY: replace OWNER/REPO with this repository after using the template.
+  - name: Security vulnerability
+    url: https://github.com/OWNER/REPO/security/advisories/new
+    about: Report privately through a security advisory. Never open a public issue for a vulnerability.
+
+  # Uncomment and fill in once GitHub Discussions is enabled for the repo:
+  # - name: Question / help
+  #   url: https://github.com/OWNER/REPO/discussions
+  #   about: For "how do I..." questions and open-ended discussion -- not a bug or a proposal.
