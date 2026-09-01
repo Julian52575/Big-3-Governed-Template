@@ -200,6 +200,29 @@ Keep the two in sync when you customise: the type list lives in both
 Make your developers refer to the [Conventional Commits Cheatsheet](https://gist.github.com/qoomon/5dfcdf8eec66a051ecd85625518cfd13#commit-message-formats)   
 or the [Official Summary](https://www.conventionalcommits.org/en/v1.0.0/#summary) for convenience. 
 
+### Issue templates
+
+`.github/ISSUE_TEMPLATE/` ships four [issue forms](https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/configuring-issue-templates-for-your-repository)
+— structured fields rather than a blank box — and `config.yml` turns off blank
+issues, so every issue arrives in one of these shapes. Each form auto-applies a
+type label plus `needs-triage`, and each opens with a "not a duplicate"
+pre-submit check.
+
+| Form | For | Key fields |
+| ---- | --- | ---------- |
+| **Feature** | a new capability or an enhancement | Problem (the need, not the solution), Proposed solution, Alternatives, rough scope |
+| **Bug** | incorrect behaviour in something that exists | What's wrong, Steps to reproduce (from a clean checkout), Expected vs actual, Environment (`git rev-parse HEAD`), Logs |
+| **R&D** | a research spike or open design question | Question/hypothesis, Definition of done, Context and constraints, rough scope |
+| **Debt** | it works, but the code or design carries a shortcut | The shortcut (and where), Cost it carries, Proposed cleanup, interest accrual |
+
+Security reports are routed away from public issues: `config.yml` links to
+**private vulnerability reporting** instead (replace `OWNER/REPO` after using the
+template).
+
+The forms are the front half of the workflow: an issue defines the *problem*, a
+PR closing it carries the *solution*. That split is why the PR template below can
+stay so small.
+
 ### Pull request template
 
 `.github/PULL_REQUEST_TEMPLATE.md` pre-fills every new PR. It is deliberately
