@@ -1,0 +1,59 @@
+name: check-pr-linked-issue
+
+# Fail the check unless the pull request closes at least one issue.
+#
+# "Linked" means a real closing reference: either a "Closes #NNN" / "Fixes #NNN"
+# keyword in the PR body or a manual link added through the GitHub UI. Both show
+# up in the PR's `closingIssuesReferences` GraphQL connection.
+#
+# Uses `pull_request` (not `pull_request_target`): this job never checks out PR
+# code, it only makes authenticated API reads, so it does not need base-branch
+# context or secrets -- and `pull_request` means the check is exercised from the
+# PR branch itself.
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+
+# Least privilege: only needs to read pull-request metadata.
+permissions:
+  pull-requests: read
+
+jobs:
+  linked-issue:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require at least one linked (closing) issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { repository } = await github.graphql(
+              `query ($owner: String!, $repo: String!, $number: Int!) {
+                repository(owner: $owner, name: $repo) {
+                  pullRequest(number: $number) {
+                    closingIssuesReferences(first: 10) {
+                      totalCount
+                      nodes { number }
+                    }
+                  }
+                }
+              }`,
+              {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                number: context.payload.pull_request.number,
+              },
+            );
+
+            const refs = repository.pullRequest.closingIssuesReferences;
+            if (refs.totalCount === 0) {
+              core.setFailed(
+                'This PR has no linked issue. Add "Closes #NNN" to the PR ' +
+                'description (or link an issue via the sidebar) and re-run.',
+              );
+              return;
+            }
+
+            core.info(
+              `Linked issue(s): ${refs.nodes.map((n) => `#${n.number}`).join(', ')}`,
+            );

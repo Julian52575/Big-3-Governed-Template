@@ -309,14 +309,19 @@ Requests* in the UI):
 | Secret scanning + push protection | free on **public** repos; private needs GitHub Advanced Security |
 | Private vulnerability reporting | free on every repo |
 
+**Actions settings** (set by the script; *Settings → Actions → General* in the UI):
+
+| Setting | Value | Why |
+| ------- | ----- | --- |
+| Default `GITHUB_TOKEN` permissions | read-only | workflows get a read token unless they opt in with their own `permissions:` block |
+
 The script treats the security calls as best-effort — on a plan that doesn't
 include one it prints a warning and moves on.
 
 #### BONUS: Org-level (can't be scripted per-repo)
 
 Set these once for the organisation, not the repo:  
-**require 2FA for all members**, and under *Actions → General* set **fork pull request workflows** to
-require approval and **workflow permissions** to read-only by default.
+**require 2FA for all members**, and under *Actions → General* set **fork pull request workflows** to require approval. 
 
 ## Layout
 
