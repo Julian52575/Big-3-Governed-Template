@@ -359,6 +359,13 @@ scripts/apply-governance.sh    apply the ruleset + merge/security settings via `
   `nix flake update`.
 - Rename this file's heading and delete this section once you've made it yours.
 
+## AI usage disclosure
+
+Parts of this repository were drafted with AI assistance by Claude Code.  
+Every AI-assisted change is reviewed and tested by a human. 
+This is tracked by AI-assisted commits carrying a `Co-Authored-By:` trailer naming  
+the assistant, alongside the human author who reviewed and committed them.
+
 ---
 
 © 2026 Julian Bottiglione &lt;julian.bottiglione@epitech.eu&gt;
