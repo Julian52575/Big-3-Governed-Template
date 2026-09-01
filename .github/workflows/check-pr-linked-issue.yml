@@ -13,18 +13,28 @@ name: check-pr-linked-issue
 
 on:
   pull_request:
-    types: [opened, edited, synchronize, reopened, ready_for_review]
+    # No `synchronize`: the linked issue lives in the PR body, which pushes do
+    # not touch. `edited` covers body/title changes.
+    types: [opened, edited, reopened, ready_for_review]
 
-# Least privilege: only needs to read pull-request metadata.
+# Least privilege: read-only, and only the scopes the GraphQL query reads.
 permissions:
+  contents: read
+  issues: read
   pull-requests: read
+
+# Cancel superseded runs for the same PR.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   linked-issue:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Require at least one linked (closing) issue
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
         with:
           script: |
             const { repository } = await github.graphql(
