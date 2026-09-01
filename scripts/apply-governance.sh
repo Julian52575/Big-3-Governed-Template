@@ -16,6 +16,7 @@
 #   - branch ruleset on the default branch, imported from .github/rulesets/main.json
 #   - merge button: squash only, PR title as the commit subject
 #   - auto-delete merged branches, always suggest updating PR branches, auto-merge
+#   - Actions: default GITHUB_TOKEN permission read-only (workflows opt in)
 #   - Dependabot alerts + automated security fixes
 #   - secret scanning + push protection      (public repo, or private with GHAS)
 #   - private vulnerability reporting
@@ -61,6 +62,12 @@ gh api --method PATCH "repos/$repo" \
   -F allow_update_branch=true \
   -F allow_auto_merge=true >/dev/null
 echo "    squash-only; PR title becomes the commit subject"
+
+echo "==> Actions: default GITHUB_TOKEN permission read-only"
+try gh api --method PUT "repos/$repo/actions/permissions/workflow" \
+  -f default_workflow_permissions=read \
+  -F can_approve_pull_request_reviews=false
+echo "    workflows get a read-only token unless they opt in with permissions:"
 
 echo "==> Dependabot alerts + automated security fixes"
 try gh api --method PUT "repos/$repo/vulnerability-alerts"

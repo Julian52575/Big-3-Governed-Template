@@ -4,17 +4,35 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch: # allow a manual re-run from the Actions tab
+
+# Least privilege: this workflow only needs to read the repo contents.
+permissions:
+  contents: read
+
+# Cancel superseded runs for the same PR (or branch). Runs on `main` are left
+# alone -- we want every push to `main` to complete.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   devshell:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     env:
       PODMAN_NO_SOCKET: "1" # don't spawn a Podman API socket in CI
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          # No git writes in this job; do not leave the token in .git/config.
+          persist-credentials: false
 
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@main
+      # Local composite action: check out first, then it installs Nix.
+      # `nix flake check` below already evaluates the flake, so skip the warm.
+      - uses: ./.github/actions/setup-devshell
+        with:
+          warm: "false"
 
       - name: Check the flake evaluates
         run: nix flake check --no-build
@@ -33,6 +51,7 @@ jobs:
     if: always()
     needs: [devshell]
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Every required job passed
         run: |
