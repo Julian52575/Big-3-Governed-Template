@@ -341,8 +341,10 @@ api/                      `backend` image source (python:slim + stdlib app.py)
 .containerignore          build-context excludes (.dockerignore -> symlink)
 .githooks/commit-msg           dispatcher git runs; execs the check script below
 .githooks/check-conventional-commit-msg   local Conventional Commits check (enabled by the shellHook)
+.github/actions/setup-devshell/   composite action: checkout-then-install-Nix, shared by workflows
 .github/workflows/ci.yml       flake eval + compose lint; `ci-required` aggregator gate
 .github/workflows/check-conventional-commit-pr-title.yml  PR title must be a Conventional Commit
+.github/workflows/check-pr-linked-issue.yml  every PR must close at least one issue
 .github/rulesets/main.json     default-branch ruleset, in GitHub export format
 scripts/apply-governance.sh    apply the ruleset + merge/security settings via `gh`
 ```

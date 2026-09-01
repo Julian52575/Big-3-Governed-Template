@@ -1,0 +1,26 @@
+name: setup-devshell
+description: >
+  Install Nix and warm this repo's dev shell, so later steps can call
+  `nix develop --command ...` cheaply. Shared setup for every workflow that
+  needs the toolbox.
+
+  The caller MUST run actions/checkout before this action -- a composite
+  action referenced by local path (./.github/actions/...) cannot check out
+  the repository it lives in.
+
+inputs:
+  warm:
+    description: Evaluate the flake and build the dev shell now, so later steps hit a warm store.
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    - name: Install Nix
+      # Pinned to a commit SHA; the trailing comment tracks the release for Dependabot.
+      uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
+
+    - name: Warm the dev shell
+      if: inputs.warm == 'true'
+      shell: bash
+      run: nix develop --command true
