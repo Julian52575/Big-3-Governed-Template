@@ -200,6 +200,23 @@ Keep the two in sync when you customise: the type list lives in both
 Make your developers refer to the [Conventional Commits Cheatsheet](https://gist.github.com/qoomon/5dfcdf8eec66a051ecd85625518cfd13#commit-message-formats)   
 or the [Official Summary](https://www.conventionalcommits.org/en/v1.0.0/#summary) for convenience. 
 
+### Pull request template
+
+`.github/PULL_REQUEST_TEMPLATE.md` pre-fills every new PR. It is deliberately
+short: the [issue forms](.github/ISSUE_TEMPLATE/) already capture the *problem*
+(what's wrong, repro, proposed change, alternatives), and the Conventional-Commit
+PR title already encodes the *type* of change. Repeating any of that in the PR
+body is noise. Every PR is expected to close an issue, so the template only asks
+for what a **reviewer** can't get from the linked issue or the diff:
+
+| Field | Why it's there |
+| ----- | -------------- |
+| `Closes #NNN` | Required. Links the issue and auto-closes it on merge. Branch and push first if you like, but the issue must exist before the PR is opened. |
+| What changed | One or two lines on the shape of the diff — the "why" stays in the issue. |
+| How it was verified | The steps a reviewer repeats to trust the change; not something the issue knows. |
+| Risk / rollback | Breaking changes, migrations, blast radius. "None" is a valid answer. |
+| Checklist | "meant to close an issue" plus tests / docs — the easily-forgotten parts. |
+
 ### Branch ruleset & repository settings
 
 The template ships prepared settings as json and a script to apply it directly:
