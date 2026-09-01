@@ -375,6 +375,30 @@ This is *not* the template default because it points at an account only the
 template's original owner controls — every repo made from this template would
 need to swap it for their own cache.
 
+### OpenSSF Scorecard audit
+
+`.github/workflows/openssf-scorecard.yml` runs
+[OpenSSF Scorecard](https://github.com/ossf/scorecard) — an automated audit of
+the repo's supply-chain and governance posture (branch protection, pinned
+dependencies, token permissions, code review, …) — every **Monday 09:00 UTC**
+and on demand via `workflow_dispatch`.
+
+Each run:
+
+1. scans `main` and writes the JSON results to `.readme-badges/scorecard-results.json`
+   (path is the `BADGE_RESULTS_PATH` env var, used throughout the workflow);
+2. force-pushes those results plus a `SCORECARD.md` summary table to the
+   **`openssf-update`** branch — a throwaway integration branch rebuilt from
+   `main` each run, meant to be reviewed and merged back on a regular cadence
+   (the same pattern as a Dependabot update branch);
+3. opens an issue labelled `openssf` + `auto-update` with the score and the
+   sub-10 checks, or comments the new report on the existing open one.
+
+The job runs under the repo's read-only `GITHUB_TOKEN` default and opts into
+exactly `contents: write` (the branch push), `issues: write` (the report),
+and `id-token: write` (`publish_results` — sends the score to the public
+OpenSSF API that backs the README badge; public repos only).
+
 ## Layout
 
 ```
@@ -397,6 +421,7 @@ api/                      `backend` image source (python:slim + stdlib app.py)
 .github/workflows/ci.yml       flake eval + compose lint; `ci-required` aggregator gate
 .github/workflows/check-conventional-commit-pr-title.yml  PR title must be a Conventional Commit
 .github/workflows/check-pr-linked-issue.yml  every PR must close at least one issue
+.github/workflows/openssf-scorecard.yml  weekly OpenSSF Scorecard audit -> `openssf-update` branch + issue
 .github/rulesets/main.json     default-branch ruleset, in GitHub export format
 scripts/apply-governance.sh    apply the ruleset + merge/security settings via `gh`
 ```
