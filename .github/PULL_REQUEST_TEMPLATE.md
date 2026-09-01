@@ -27,3 +27,4 @@ Closes #NNN
 - [ ] This PR is meant to close an issue, linked as `Closes #NNN` above
 - [ ] Tests added or updated
 - [ ] Docs updated if behaviour changed
+- [ ] AI-assisted changes (if any) were reviewed line-by-line by a human before this PR was opened
