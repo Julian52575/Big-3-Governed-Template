@@ -4,10 +4,13 @@ name: openssf-scorecard
 #
 # Every Monday 09:00 UTC (and on demand) this:
 #   1. runs Scorecard against the repo,
-#   2. commits the results + a markdown summary to the `openssf-update` branch
-#      (reset to `main` + the results each run, force-pushed -- no one else
-#      writes to it), and
-#   3. opens an issue with the findings, or comments on the open one.
+#   2. commits the results, a shields.io badge JSON, and a markdown summary to
+#      the `openssf-update` branch (reset to `main` + the results each run,
+#      force-pushed -- no one else writes to it), and
+#   3. opens an issue with the findings (or comments on the open one) carrying
+#      a pre-filled "open the pull request" link -- one click lands a PR that
+#      already says `Closes #<issue>`, so reviewing + merging it updates `main`
+#      and closes the issue in one go.
 #
 # `openssf-update` is meant to be reviewed and merged into `main` on a regular
 # cadence, the same integration-branch pattern as Dependabot.
@@ -26,6 +29,7 @@ concurrency:
 
 env:
   BADGE_RESULTS_PATH: .readme-badges/scorecard-results.json
+  BADGE_JSON_PATH: .readme-badges/scorecard-badge.json
 
 jobs:
   scorecard:
@@ -34,7 +38,6 @@ jobs:
     permissions:
       contents: write # force-push the results commit to `openssf-update`
       issues: write # open / comment the findings issue
-      id-token: write # publish_results -> OpenSSF public API (feeds the badge)
     steps:
       - name: Check out main
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -50,10 +53,7 @@ jobs:
         with:
           results_file: ${{ env.BADGE_RESULTS_PATH }}
           results_format: json
-          # Publishes to the public OpenSSF API so the README badge (see the
-          # badges issue) has data.
-          # Public repo only; set to false to keep the audit private.
-          publish_results: true
+          publish_results: false
 
       - name: Build a markdown summary
         id: summary
@@ -79,6 +79,16 @@ jobs:
             echo "date=${date}"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Build the badge JSON
+        run: |
+          set -euo pipefail
+          score=$(jq -r '.score' "$BADGE_RESULTS_PATH")
+          # Scorecard scores 0-10; colour by threshold.
+          color=$(awk -v s="$score" 'BEGIN { print (s >= 7.5) ? "brightgreen" : (s >= 5) ? "yellow" : "red" }')
+          jq -n --arg msg "${score}/10" --arg color "$color" \
+            '{schemaVersion: 1, label: "OpenSSF Scorecard", message: $msg, color: $color}' \
+            > "$BADGE_JSON_PATH"
+
       - name: Commit results to openssf-update
         id: commit
         run: |
@@ -87,7 +97,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           # Rebuild the branch from the current main + this run's results.
           git switch -c openssf-update
-          git add "$BADGE_RESULTS_PATH" SCORECARD.md
+          git add "$BADGE_RESULTS_PATH" "$BADGE_JSON_PATH" SCORECARD.md
           if git diff --cached --quiet; then
             echo "no change since last run"
             echo "changed=false" >> "$GITHUB_OUTPUT"
@@ -97,12 +107,13 @@ jobs:
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Open or update the findings issue
+      - name: Open the findings issue with a one-click PR link
         env:
           GH_TOKEN: ${{ github.token }}
           SCORE: ${{ steps.summary.outputs.score }}
           DATE: ${{ steps.summary.outputs.date }}
           REPO: ${{ github.repository }}
+          CHANGED: ${{ steps.commit.outputs.changed }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
@@ -111,23 +122,44 @@ jobs:
 
           branch_url="${GITHUB_SERVER_URL}/${REPO}/tree/openssf-update"
 
-          {
-            echo "## OpenSSF Scorecard — automated weekly audit"
-            echo
-            cat SCORECARD.md
-            echo
-            echo "Full results for this run are on the [\`openssf-update\`](${branch_url}) branch (\`${BADGE_RESULTS_PATH}\`); review that branch and merge it into \`main\`. Re-run [the workflow](${RUN_URL}) or wait until next Monday to refresh."
-            echo
-            echo "<!-- openssf-scorecard-report -->"
-          } > issue-body.md
+          # Rebuilds issue-body.md. $1 = this issue's number ("" if not known yet,
+          # so the PR link -- which needs `Closes #<n>` -- is omitted on the
+          # first pass and added by a follow-up `gh issue edit`).
+          build_body() {
+            {
+              echo "## OpenSSF Scorecard — automated weekly audit"
+              echo
+              cat SCORECARD.md
+              echo
+              if [ "${CHANGED}" = "true" ] && [ -n "${1:-}" ]; then
+                pr_title="chore(openssf): scorecard results ${DATE}"
+                pr_body=$(printf '%s\n\n%s\n' \
+                  "Automated OpenSSF Scorecard results for \`main\` (\`${BADGE_RESULTS_PATH}\` + badge JSON)." \
+                  "Closes #${1}")
+                et=$(jq -rn --arg s "$pr_title" '$s|@uri')
+                eb=$(jq -rn --arg s "$pr_body" '$s|@uri')
+                echo "**[▶ Open the pull request](${GITHUB_SERVER_URL}/${REPO}/compare/main...openssf-update?quick_pull=1&title=${et}&body=${eb})** — pre-filled and linked to this issue. Submit it, review, merge; \`main\` updates and this issue closes."
+              else
+                echo "Results are on the [\`openssf-update\`](${branch_url}) branch. Re-run [the workflow](${RUN_URL}) or wait until next Monday."
+              fi
+              echo
+              echo "<!-- openssf-scorecard-report -->"
+            } > issue-body.md
+          }
 
           existing=$(gh issue list --state open --label openssf --limit 1 --json number --jq '.[0].number // empty')
           if [ -n "$existing" ]; then
+            build_body "$existing"
             gh issue comment "$existing" --body-file issue-body.md
             echo "commented on #$existing"
           else
-            gh issue create \
+            build_body ""
+            url=$(gh issue create \
               --title "OpenSSF Scorecard: ${SCORE}/10 (${DATE})" \
               --label "openssf,auto-update" \
-              --body-file issue-body.md
+              --body-file issue-body.md)
+            num=$(basename "$url")
+            build_body "$num"
+            gh issue edit "$num" --body-file issue-body.md
+            echo "opened #$num"
           fi

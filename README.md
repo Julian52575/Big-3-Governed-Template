@@ -2,6 +2,11 @@
 
 <img width="653" height="758" alt="Big3NixPodJust" src="https://github.com/user-attachments/assets/0044d938-f98a-44a2-9057-2fa8246e9a1a" />
 
+<!-- Badge JSON is regenerated on the `openssf-update` branch by the
+     openssf-scorecard workflow. If you made a repo from this template, swap
+     `Julian52575/Big-3-Governed-Template` for your own owner/repo. -->
+[![OpenSSF Scorecard](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FJulian52575%2FBig-3-Governed-Template%2Fopenssf-update%2F.readme-badges%2Fscorecard-badge.json)](https://github.com/Julian52575/Big-3-Governed-Template/tree/openssf-update)
+
 A GitHub **template repository**: clone it, install two dependencies, and you have a
 full multi-service dev environment identical on every (Linux) machine that can be expanded to **ANY** kind of project.  
 
@@ -386,18 +391,23 @@ and on demand via `workflow_dispatch`.
 Each run:
 
 1. scans `main` and writes the JSON results to `.readme-badges/scorecard-results.json`
-   (path is the `BADGE_RESULTS_PATH` env var, used throughout the workflow);
-2. force-pushes those results plus a `SCORECARD.md` summary table to the
+   and a shields.io badge JSON to `.readme-badges/scorecard-badge.json` (paths
+   are the `BADGE_RESULTS_PATH` / `BADGE_JSON_PATH` env vars);
+2. force-pushes those files plus a `SCORECARD.md` summary table to the
    **`openssf-update`** branch — a throwaway integration branch rebuilt from
-   `main` each run, meant to be reviewed and merged back on a regular cadence
-   (the same pattern as a Dependabot update branch);
+   `main` each run (the same pattern as a Dependabot update branch);
 3. opens an issue labelled `openssf` + `auto-update` with the score and the
-   sub-10 checks, or comments the new report on the existing open one.
+   sub-10 checks (or comments on the open one), carrying a **pre-filled
+   `compare?quick_pull=1` link**. Clicking it lands a PR that already has a
+   conventional title and `Closes #<issue>`, so a maintainer just reviews and
+   merges — `main` updates and the issue closes in one step.
 
-The job runs under the repo's read-only `GITHUB_TOKEN` default and opts into
-exactly `contents: write` (the branch push), `issues: write` (the report),
-and `id-token: write` (`publish_results` — sends the score to the public
-OpenSSF API that backs the README badge; public repos only).
+**The badge.** `publish_results` is deliberately off — publishing to the
+OpenSSF webapp forbids a workflow-level `env:` block. Instead the README badge
+is a shields.io *endpoint* badge that reads `scorecard-badge.json` straight
+from the `openssf-update` branch via `raw.githubusercontent.com`. It shows
+nothing until the workflow has run once on `main` and created that branch. A
+repo made from this template must point the badge URL at its own `owner/repo`.
 
 ## Layout
 
