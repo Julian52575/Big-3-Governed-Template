@@ -1,11 +1,11 @@
-# Nix + Just + Rootless Podman — The Big 3, governed
-
-<img width="653" height="758" alt="Big3NixPodJust" src="https://github.com/user-attachments/assets/0044d938-f98a-44a2-9057-2fa8246e9a1a" />
-
 <!-- Badge JSON is regenerated on the `openssf-update` branch by the
      openssf-scorecard workflow. If you made a repo from this template, swap
      `Julian52575/Big-3-Governed-Template` for your own owner/repo. -->
 [![OpenSSF Scorecard](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FJulian52575%2FBig-3-Governed-Template%2Fopenssf-update%2F.readme-badges%2Fscorecard-badge.json)](https://github.com/Julian52575/Big-3-Governed-Template/tree/openssf-update)
+
+# Nix + Just + Rootless Podman — The Big 3, governed
+
+<img width="653" height="758" alt="Big3NixPodJust" src="https://github.com/user-attachments/assets/0044d938-f98a-44a2-9057-2fa8246e9a1a" />
 
 A GitHub **template repository**: clone it, install two dependencies, and you have a
 full multi-service dev environment identical on every (Linux) machine that can be expanded to **ANY** kind of project.  
