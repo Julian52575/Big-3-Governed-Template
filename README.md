@@ -402,13 +402,6 @@ Each run:
    conventional title and `Closes #<issue>`, so a maintainer just reviews and
    merges — `main` updates and the issue closes in one step.
 
-The workflow does **not** call `gh pr create` itself:
-`scripts/apply-governance.sh` sets `can_approve_pull_request_reviews=false`
-(Actions can't open PRs), and a `GITHUB_TOKEN`-authored PR wouldn't trigger
-the required-check workflows anyway. Because a human opens the compare link,
-every check runs normally. It runs under the read-only `GITHUB_TOKEN` default
-plus `contents: write` (the branch push) and `issues: write` (the report).
-
 **The badge.** `publish_results` is deliberately off — publishing to the
 OpenSSF webapp forbids a workflow-level `env:` block. Instead the README badge
 is a shields.io *endpoint* badge that reads `scorecard-badge.json` straight

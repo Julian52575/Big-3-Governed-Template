@@ -12,15 +12,6 @@ name: openssf-scorecard
 #      already says `Closes #<issue>`, so reviewing + merging it updates `main`
 #      and closes the issue in one go.
 #
-# The workflow does not call `gh pr create` itself: `apply-governance.sh` sets
-# `can_approve_pull_request_reviews=false`, which blocks Actions from opening
-# PRs, and a `GITHUB_TOKEN`-authored PR would not trigger the required-check
-# workflows anyway. The compare link is opened by a human, so every check runs.
-#
-# `publish_results` is off: publishing to the OpenSSF webapp forbids a global
-# `env:` block (see scorecard-action "workflow restrictions"), and the README
-# badge is served from the committed JSON instead -- no external dependency.
-#
 # `openssf-update` is meant to be reviewed and merged into `main` on a regular
 # cadence, the same integration-branch pattern as Dependabot.
 
