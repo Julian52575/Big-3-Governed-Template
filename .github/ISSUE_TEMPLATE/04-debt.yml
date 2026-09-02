@@ -12,8 +12,8 @@ body:
 
   - type: textarea
     attributes:
-      label: The shortcut
-      description: What was done the quick way, and where in the codebase it lives.
+      label: What's owed
+      description: The shortcut taken, or the upkeep that's fallen behind (e.g. a stale dependency) -- and where in the codebase it lives.
     validations:
       required: true
 
