@@ -1,7 +1,7 @@
-<!-- swap `Julian52575/Big-3-Secure-Template` in the badge URL for your own owner/repo. -->
-[![OpenSSF Scorecard](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FJulian52575%2FBig-3-Secure-Template%2Fmain%2F.readme-badges%2Fscorecard-badge.json)](.readme-badges/scorecard-results.json)
+<!-- swap `Julian52575/Big-3-Governed-Template` in the badge URL for your own owner/repo. -->
+[![OpenSSF Scorecard](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FJulian52575%2FBig-3-Governed-Template%2Fmain%2F.readme-badges%2Fscorecard-badge.json)](.readme-badges/scorecard-results.json)
 
-# Nix + Just + Rootless Podman — The Big 3, secured
+# Nix + Just + Rootless Podman — The Big 3, governed
 
 <img width="653" height="758" alt="Big3NixPodJust" src="https://github.com/user-attachments/assets/0044d938-f98a-44a2-9057-2fa8246e9a1a" />
 
