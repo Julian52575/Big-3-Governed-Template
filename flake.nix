@@ -2,29 +2,28 @@
   description = "Dev environment template: Nix + Just + rootless Podman + Traefik";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
+  # Newest prebuilt packages, for the tools with no official binary release
+  # (see nix/openssl.nix, nix/curl.nix).
+  inputs.nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
 
-  outputs = { self, nixpkgs }:
+  outputs = { self, nixpkgs, nixpkgs-unstable }:
     let
       systems = [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" ];
       forAllSystems = f:
-        nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
+        nixpkgs.lib.genAttrs systems (system:
+          f nixpkgs.legacyPackages.${system}
+            # unstable no longer supports Intel Macs; nix/ falls back to stable there
+            (if system == "x86_64-darwin" then null else nixpkgs-unstable.legacyPackages.${system}));
     in
     {
-      devShells = forAllSystems (pkgs: {
+      devShells = forAllSystems (pkgs: unstable: {
         default = pkgs.mkShellNoCC {
           # Everything a bare `nix develop` needs so `just up` works with no
           # host container packages installed. Add project tooling here.
-          packages = with pkgs; [
-            lolcat
-            just
-            jq
-            openssl # the shellHook fills `change-me-*` secrets in .env
+          # Pinned tools first, so they win on PATH over any nixpkgs copy.
+          packages = import ./nix/tools.nix { inherit pkgs unstable; } ++ (with pkgs; [
+            # rootless podman stack, from nixpkgs; every other tool is pinned in nix/
             podman-compose
-            curl # the shellHook pings the podman API socket with it
-            # workflow linting (`just lint-workflows`)
-            actionlint
-            shellcheck # actionlint uses it to lint `run:` scripts
-            check-jsonschema # validates workflows: --builtin-schema vendor.github-workflows
           ] ++ lib.optionals stdenv.isLinux [
             # rootless podman stack. On macOS, Podman comes from the host
             # (Podman Desktop, Homebrew or MacPorts) and runs in `podman machine`.
@@ -35,7 +34,7 @@
             passt # pasta, podman's newer rootless net backend
             catatonit # lightweight PID 1 for `--init` / compose
             util-linux # setsid -- detaches the fallback API service from the tty
-          ] ++ (import ./nix/tools.nix { inherit pkgs; }).all;
+          ]);
 
           shellHook = ''
             # --- .env ----------------------------------------------------

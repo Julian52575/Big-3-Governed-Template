@@ -136,7 +136,7 @@ jobs:
           -color
 
   # Security audit of every workflow and action; findings show as PR annotations.
-  # Keep the version in sync with nix/tools.nix.
+  # Keep the version in sync with nix/zizmor.nix.
   zizmor:
     runs-on: ubuntu-latest
     timeout-minutes: 10

@@ -34,8 +34,14 @@ source of truth. The hard rules:
   - make a new job mandatory by adding it to `ci-required.needs` in
     `ci.yml`, never by editing `.github/rulesets/main.json`.
   - Run `just lint-workflows` (actionlint, zizmor, schema) before committing.
-- **Tooling** comes from the Nix dev shell (`nix develop`). Add a tool to
-  `flake.nix`, or to `nix/tools.nix` when nixpkgs lags the version CI uses.
+- **Tooling** comes from the Nix dev shell (`nix develop`).
+- **Pin the latest binary release; never compile.** `nix develop` must only
+  download. A tool goes in its own `nix/<tool>.nix`, listed in
+  `nix/tools.nix`, pinned to its latest **prebuilt** release: the official
+  binary when upstream publishes one, else an official package (a PyPI
+  wheel), else the newest build on `cache.nixos.org` (nixpkgs-unstable) with
+  its version asserted. Never override a nixpkgs package's source: that
+  compiles on every machine. Only the Podman stack follows nixpkgs directly.
 - **No OS-specific scripts**: new helper scripts are Python 3 (standard
   library only, like `adapt.py`), not shell, so they run on Linux, macOS and
   Windows. `justfile` recipes stay one-liners that call them.
@@ -53,6 +59,10 @@ source of truth. The hard rules:
 
 Follow [README.md](README.md) and [CONTRIBUTING.md](CONTRIBUTING.md); they
 describe this project's stack and rules.
+
+When adding a tool to the dev shell, follow the same rule as the template:
+**pin its latest binary release in its own `nix/<tool>.nix`; never compile**
+(see `nix/tools.nix` and the template section above).
 
 **Tell the user, once per session,** that this AGENTS.md is still the
 template's: the section above describes the template repository, not their
