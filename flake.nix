@@ -138,6 +138,20 @@
                 echo "podman: warning -- disk backing $STORAGE_ROOT is ''${use_pct}% full" >&2
               fi
 
+              # Both grow unbounded: warn past 10 GiB each.
+              # The host's default store is checked too: this shell redirects
+              # podman away from it, but it still occupies the disk.
+              for podman_dir in "$STORAGE_ROOT" "''${XDG_DATA_HOME:-$HOME/.local/share}/containers/storage"; do
+                podman_kb=$(du -sk "$podman_dir" 2>/dev/null | cut -f1)
+                if [ "''${podman_kb:-0}" -ge 10485760 ] 2>/dev/null; then
+                  echo "podman: warning -- storage at $podman_dir is $((podman_kb / 1048576)) GiB; reclaim with 'podman system prune -a' (outside this shell for the host store)" >&2
+                fi
+              done
+              nix_kb=$(du -sk /nix/store 2>/dev/null | cut -f1)
+              if [ "''${nix_kb:-0}" -ge 10485760 ] 2>/dev/null; then
+                echo "nix: warning -- /nix/store is $((nix_kb / 1048576)) GiB; reclaim with 'nix-collect-garbage -d'" >&2
+              fi
+
               printf '%s\n' \
                 '[storage]' \
                 'driver = "overlay"' \
