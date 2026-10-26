@@ -78,3 +78,11 @@ attach service:
 # (internal) print the container id for a compose service in this project
 _cid service:
     @{{tool}} ps -q --filter "label=com.docker.compose.project.working_dir={{justfile_directory()}}" --filter "label=com.docker.compose.service={{service}}" | head -n1
+
+#### Lint
+
+# Lint every workflow: syntax + shellcheck, security audit, schema
+lint-workflows:
+    actionlint
+    zizmor .github/
+    check-jsonschema --builtin-schema vendor.github-workflows .github/workflows/*.yml

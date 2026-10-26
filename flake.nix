@@ -28,7 +28,11 @@
             catatonit # lightweight PID 1 for `--init` / compose
             curl # the shellHook pings the podman API socket with it
             util-linux # setsid -- detaches the fallback API service from the tty
-          ];
+            # workflow linting (`just lint-workflows`)
+            actionlint
+            shellcheck # actionlint uses it to lint `run:` scripts
+            check-jsonschema # validates workflows: --builtin-schema vendor.github-workflows
+          ] ++ (import ./nix/tools.nix { inherit pkgs; }).all;
 
           shellHook = ''
             # --- .env (optional) -------------------------------------------
