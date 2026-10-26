@@ -184,7 +184,8 @@ Entering the shell (`nix develop` / direnv):
 | `just exec <svc> <cmd…>` | run a command in a running service container |
 | `just sh <svc>` | interactive shell in a running service container |
 | `just attach <svc>` | attach this terminal to a service's live stdio (detach: Ctrl-C or ctrl-p ctrl-q) |
-| `just nuke` | stop stack + delete its volumes and local images (asks first; runs `_pre-nuke` first) |
+| `just rebuild <svc>` | rebuild one service with no cache and recreate it; the others keep running |
+| `just nuke` | stop stack + delete its volumes and local images (asks first; runs `_pre-nuke` first; refuses on `main` or a release tag unless `NUKE_ANYWAY=1`) |
 | `just lint-workflows` | actionlint + zizmor + schema check on `.github/`, as CI does |
 | `just database-dump` / `database-pipe <file>` | Postgres backup/restore in `pg_dump -Fc` format (`db_backup_<timestamp>.dump`, gitignored) — commented out until you add a `db` service |
 

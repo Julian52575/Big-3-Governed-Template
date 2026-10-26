@@ -34,10 +34,23 @@ rm *args:
         --filter "reference={{project}}*" --filter "reference=localhost/{{project}}*" \
       | sort -u | xargs -r {{tool}} rmi -f || true
 
+# Rebuild one service from scratch and recreate it, leaving the rest running: `just rebuild backend`
+rebuild service:
+    {{compose}} build --no-cache {{service}}
+    {{compose}} up -d --force-recreate --no-deps {{service}}
+
 # Like `just rm`, but also delete named volumes -- wipes db data etc.
 nuke *args:
     #!/usr/bin/env bash
     set -euo pipefail
+    # A checkout on main or a release tag is usually a deployment: refuse
+    # (from puniemu). Override with NUKE_ANYWAY=1.
+    if [[ -z "${NUKE_ANYWAY:-}" ]]; then
+        branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+        tag="$(git describe --tags --exact-match 2>/dev/null || true)"
+        [[ "$branch" != "main" ]] || { echo "refusing to nuke on 'main' (NUKE_ANYWAY=1 to override)"; exit 1; }
+        [[ -z "$tag" ]] || { echo "refusing to nuke on release tag '$tag' (NUKE_ANYWAY=1 to override)"; exit 1; }
+    fi
     read -rp "⚠️  Delete containers, images AND volumes for this project? type 'yes': " c
     [[ "$c" == "yes" ]] || { echo "aborted"; exit 1; }
     just _pre-nuke
