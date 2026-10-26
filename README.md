@@ -47,6 +47,19 @@ Making your own repo from it? Click **Use this template**, then run
   `/etc/subuid` + `/etc/subgid` entry for your user.
 - **macOS:** Podman from the host ([Podman Desktop](https://podman-desktop.io/)
   or `brew install podman`), with `podman machine init && podman machine start`.
+- **Windows:** the flake does not run natively. Either
+  - **use [WSL 2](https://learn.microsoft.com/windows/wsl/install)**
+    (recommended) and follow the Linux steps inside it, with the repo in the
+    Linux filesystem (`~/…`, not `/mnt/c/…`); or
+  - **skip the flake** and install the tools system-wide:
+    [Git for Windows](https://gitforwindows.org/) (its bash runs the
+    `justfile` and git hooks), [just](https://just.systems/man/en/packages.html),
+    [Podman Desktop](https://podman-desktop.io/) or
+    [Docker Desktop](https://docs.docker.com/desktop/setup/install/windows-install/),
+    and [Node.js 24](https://nodejs.org/). Then `cp .env.example .env`, replace
+    each `change-me-*` value yourself, and run
+    `git config core.hooksPath .githooks`. `just` uses Podman, or Docker when
+    Podman is missing.
 
 Ubuntu in two commands:
 
@@ -156,7 +169,7 @@ backend/                               Express + Prisma placeholder (Jest, super
 .sast/                                 SAST config, report scripts, committed reports, OpenSSF summary
 scripts/apply-governance.sh            applies the repository settings
 release-please-config.json, .release-please-manifest.json
-docs/Troubleshoot.md                   incident log
+docs/troubleshooting/                  incident log, one subfolder per area
 adapt.py, README-ADAPT.md              guided adaptation of a new repository
 CONTRIBUTING.md, AGENTS.md
 ```

@@ -97,6 +97,31 @@ commit SHAs) and `jq`.
 
 ## Troubleshooting
 
-Record every incident in [`docs/Troubleshoot.md`](docs/Troubleshoot.md):
-**Error**, **Occurrences**, **Cause**, **Solution**, written for someone who
-wasn't there. Same cause as an existing entry? Add an occurrence to it instead.
+Record every incident under [`docs/troubleshooting/`](docs/troubleshooting/),
+in a subfolder per area, one Markdown file per incident:
+
+```
+docs/troubleshooting/
+├── podman/not-a-directory-on-wsl.md
+├── ci/stack-job-timeout.md
+└── backend/prisma-openssl-missing.md
+```
+
+Each file names the **Error** (what was observed), its **Occurrences**
+(dates, environment), the **Cause** and the **Solution**, written for someone
+who wasn't there. Same cause as an existing entry? Add an occurrence to it
+instead of a new file; link related entries by relative path. Example:
+
+```markdown
+# Podman "Not a directory" when starting the stack
+
+**Error:** `just up` fails with `mount ... not a directory` on every container.
+
+**Occurrences:** 2026-01-01 (WSL2, repo under /mnt/c).
+
+**Cause:** the repo sits on a network/virtualised filesystem; overlay storage
+needs POSIX semantics.
+
+**Solution:** set `PODMAN_STORAGE_DIR` to a path on a local disk, or move the
+repo into the Linux filesystem.
+```
