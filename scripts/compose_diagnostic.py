@@ -151,6 +151,24 @@ def check_config(rep: Report, compose: list[str]) -> list[str]:
     return services.split() if code == 0 else []
 
 
+def project_name(root: Path) -> str:
+    """Compose's project name: COMPOSE_PROJECT_NAME, else the folder name."""
+    return os.environ.get("COMPOSE_PROJECT_NAME") or re.sub(r"[^a-z0-9_-]", "", root.name.lower())
+
+
+def anonymous_volumes(tool: str, container: dict, project: str) -> list[str]:
+    """Mount points backed by a volume without this project's label (an anonymous volume)."""
+    found = []
+    for m in container.get("Mounts") or []:
+        if m.get("Type") != "volume":
+            continue
+        code, label = run([tool, "volume", "inspect", m.get("Name", ""), "--format",
+                           '{{index .Labels "com.docker.compose.project"}}'])
+        if code != 0 or label.strip() != project:
+            found.append(m.get("Destination", "?"))
+    return found
+
+
 def inspect_containers(tool: str, root: Path) -> list[dict]:
     code, ids = run([tool, "ps", "-aq", "--filter", f"label=com.docker.compose.project.working_dir={root}"])
     if code != 0 or not ids.split():
@@ -187,6 +205,9 @@ def check_containers(rep: Report, tool: str, compose: list[str], root: Path, ser
             last = (health.get("Log") or [{}])[-1].get("Output", "").strip()
             rep.problem(f"`{service}` is unhealthy; Traefik does not route to it. "
                         f"Last health check said: {last[:200] or '(nothing)'}")
+        for path in anonymous_volumes(tool, c, project_name(root)):
+            rep.problem(f"`{service}` stores `{path}` in an anonymous volume, which this report cannot list "
+                        "and `just nuke` may leave behind: mount a named volume there in `docker-compose.yml`.")
         if health.get("Status") == "starting":
             rep.problem(f"`{service}` has not passed its health check yet: wait a few seconds and re-run, "
                         "or read its logs if it stays like this.")
@@ -243,8 +264,7 @@ def check_resources(rep: Report, tool: str, root: Path) -> None:
                 f"{tool} system df")
     # This project's volumes only: other projects' names stay private.
     # `system df` above already counts every volume without naming it.
-    project = os.environ.get("COMPOSE_PROJECT_NAME") or re.sub(r"[^a-z0-9_-]", "", root.name.lower())
-    cmd = [tool, "volume", "ls", "--filter", f"label=com.docker.compose.project={project}"]
+    cmd = [tool, "volume", "ls", "--filter", f"label=com.docker.compose.project={project_name(root)}"]
     rep.section("Volumes of this project", run(cmd)[1] or "(none)", " ".join(cmd))
 
 
