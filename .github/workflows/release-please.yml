@@ -1,0 +1,59 @@
+name: release-please
+
+# Maintains a long-lived "Release PR" against main. Every push to main
+# refreshes that PR with the next version (from Conventional Commit history
+# since the last release) and the accumulated CHANGELOG entries.
+#
+# Nothing is released until a maintainer merges the Release PR. Merging it
+# writes CHANGELOG.md, bumps the manifest, creates the tag (e.g. 1.2.0, no "v"
+# prefix) and publishes the GitHub Release.
+#
+# Config: release-please-config.json (release-type "simple" -- switch to
+# node/python/rust/... once the project has a language) and
+# .release-please-manifest.json (current version).
+#
+# Secret RELEASE_PLEASE_GITHUB_TOKEN (PAT or GitHub App token, Contents +
+# Pull requests: write) is REQUIRED: releases created with the built-in
+# GITHUB_TOKEN do not trigger other workflows, so release-to-ghcr.yml would
+# never run.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths-ignore:
+      - ".github/ISSUE_TEMPLATE/**"
+      - ".github/rulesets/**"
+      - ".sast/report/**"
+
+permissions:
+  contents: read
+
+# Don't let two passes race over main.
+concurrency:
+  group: release-please-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
+
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        id: release-please
+        with:
+          token: ${{ secrets.RELEASE_PLEASE_GITHUB_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+      # Runs only on the push that merged the Release PR: hook publish steps
+      # here, gated on the same condition.
+      - name: Released
+        if: ${{ steps.release-please.outputs.release_created }}
+        env:
+          TAG_NAME: ${{ steps.release-please.outputs.tag_name }}
+        run: echo "Published ${TAG_NAME}"

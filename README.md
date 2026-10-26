@@ -351,6 +351,25 @@ from the `openssf-update` branch via `raw.githubusercontent.com`. It shows
 nothing until the workflow has run once on `main` and created that branch. A
 repo made from this template must point the badge URL at its own `owner/repo`.
 
+## Releasing
+
+Releases are automated from Conventional Commit history:
+
+- **`release-please.yml`** keeps one *Release PR* open against `main`. Merging
+  it writes `CHANGELOG.md`, bumps `.release-please-manifest.json`, tags the
+  release (no `v` prefix) and publishes the GitHub Release.
+  `release-please-config.json` uses `release-type: simple`; switch it to your
+  language (`node`, `python`, `rust`, …) and replace `package-name: REPO`.
+- **`release-to-ghcr.yml`** runs on that release: it builds each image in its
+  matrix (`api`, `web` — **customise**), pushes
+  `ghcr.io/<owner>/<repo>-<image>:<tag>` and `:latest` with an SBOM and
+  provenance, and signs it keyless with cosign. Run it by hand
+  (`workflow_dispatch`) to push a test tag that never touches `:latest`.
+
+| Secret | Needed by | Why |
+| ------ | --------- | --- |
+| `RELEASE_PLEASE_GITHUB_TOKEN` | `release-please.yml` | PAT or GitHub App token (Contents + Pull requests: write). A release made with the built-in token does not trigger `release-to-ghcr.yml`. |
+
 ## Layout
 
 ```
@@ -377,6 +396,10 @@ docs/Troubleshoot.md      incident log: error, cause, solution
 .github/workflows/check-conventional-commit-pr-title.yml  PR title must be a Conventional Commit
 .github/workflows/check-pr-linked-issue.yml  every PR must close at least one issue
 .github/workflows/openssf-scorecard.yml  weekly OpenSSF Scorecard audit -> `openssf-update` branch + issue
+.github/workflows/release-please.yml  Release PR, tag + GitHub Release on merge
+.github/workflows/release-to-ghcr.yml  build, SBOM, sign and push images on release
+release-please-config.json     release-please settings (release type, changelog sections)
+.release-please-manifest.json  current version
 .github/rulesets/main.json     default-branch ruleset, in GitHub export format
 scripts/apply-governance.sh    apply the ruleset + merge/security settings via `gh`
 ```
