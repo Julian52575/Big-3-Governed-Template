@@ -18,6 +18,7 @@
             lolcat
             just
             jq
+            openssl # the shellHook fills `change-me-*` secrets in .env
             # rootless podman stack
             podman
             podman-compose
@@ -38,6 +39,15 @@
             # --- .env ----------------------------------------------------
             if [ ! -e .env ] && [ -f .env.example ]; then
               cp .env.example .env && echo "env: created .env from .env.example"
+            fi
+            # Any value starting with `change-me-` is a placeholder secret:
+            # replace it once, so re-entering the shell never rotates it.
+            if [ -f .env ] && command -v openssl >/dev/null 2>&1; then
+              for key in $(sed -nE 's/^([A-Za-z_][A-Za-z0-9_]*)="?change-me-.*/\1/p' .env); do
+                # -i.bak: works with both GNU and BSD (macOS) sed
+                sed -i.bak "s|^$key=.*|$key=$(openssl rand -hex 32)|" .env && rm -f .env.bak
+                echo "env: generated $key (openssl rand -hex 32)"
+              done
             fi
             if [ -f .env ]; then
               set -a

@@ -136,7 +136,8 @@ Close your terminal and open a new one: it's installed !
 
 Entering the shell (`nix develop` / direnv):
 
-1. Loads `.env` if present.
+1. Creates `.env` from `.env.example` if missing, replaces every
+   `change-me-*` placeholder value with a random secret (once), then loads it.
 2. Points Podman at the in-repo config (`.config/podman/`) via
    `CONTAINERS_CONF` / `CONTAINERS_STORAGE_CONF` / `CONTAINERS_REGISTRIES_CONF`,
    and symlinks `policy.json` into `~/.config/containers/` only if nothing is
