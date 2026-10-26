@@ -387,6 +387,7 @@ api/                      `backend` image source (python:slim + stdlib app.py)
 .env.example              template for .env (created by the shell on first entry)
 CONTRIBUTING.md           governance chain, conventions, PR gate, releasing
 CODE_OF_CONDUCT.md        Contributor Covenant
+AGENTS.md / CLAUDE.md     rules for AI coding agents (CLAUDE.md points to AGENTS.md)
 docs/Troubleshoot.md      incident log: error, cause, solution
 .containerignore          build-context excludes (.dockerignore -> symlink)
 .githooks/commit-msg           dispatcher git runs; execs the check script below
