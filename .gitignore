@@ -14,3 +14,6 @@
 # --- nix --------------------------------------------------------
 result
 result-*
+
+# --- SAST scratch (see .sast/README.md) --------------------------
+/.sast/codeql-results/

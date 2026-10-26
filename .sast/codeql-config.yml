@@ -1,0 +1,22 @@
+# CodeQL analysis settings, loaded by .github/workflows/ci-sast.yml
+# (codeql-action/init `config-file:`). Languages are set in the workflow.
+# Reference:
+#   https://docs.github.com/en/code-security/code-scanning/creating-an-advanced-setup-for-code-scanning/customizing-your-advanced-setup-for-code-scanning
+name: "CodeQL"
+
+# CUSTOMISE: limit analysis to your sources (honoured for interpreted
+# languages); keep in step with sonar.sources in sonar-project.properties.
+# paths:
+#   - api
+#   - web
+
+paths-ignore:
+  - "**/*.min.js"
+  - "**/*.min.css"
+  - "**/dist/**"
+  - "**/node_modules/**"
+  - ".sast/report/**"
+
+# The default `code-scanning` suite runs when this is omitted. Widen with:
+# queries:
+#   - uses: security-extended

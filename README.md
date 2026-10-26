@@ -378,6 +378,15 @@ from the `openssf-update` branch via `raw.githubusercontent.com`. It shows
 nothing until the workflow has run once on `main` and created that branch. A
 repo made from this template must point the badge URL at its own `owner/repo`.
 
+### Static analysis (SAST)
+
+`.github/workflows/ci-sast.yml` runs **CodeQL** on every ready PR and push to
+`main` (failing on error-severity alerts), and **SonarQube Cloud** once the
+`SONARQUBE_TOKEN` secret is set. With `SAST_REPORT_TOKEN` set, each push to
+`main` commits the reports under `.sast/report/`. It is not a required check
+by default — add `ci-sast-required` to the ruleset to make it one. Setup and
+customisation: [`.sast/README.md`](.sast/README.md).
+
 ## Releasing
 
 Releases are automated from Conventional Commit history:
@@ -433,6 +442,8 @@ release-please-config.json     release-please settings (release type, changelog 
 .github/DISCUSSION_TEMPLATE/   ADR discussion form
 .github/actionlint.yaml        actionlint config (allows the discussion `closed` trigger)
 docs/adr/                      accepted Architecture Decision Records
+.github/workflows/ci-sast.yml  CodeQL + opt-in SonarQube; `ci-sast-required`
+.sast/                         SAST config, report scripts, committed reports
 .github/rulesets/main.json     default-branch ruleset, in GitHub export format
 scripts/apply-governance.sh    apply the ruleset + merge/security settings via `gh`
 ```
