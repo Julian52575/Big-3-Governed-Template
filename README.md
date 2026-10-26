@@ -9,7 +9,7 @@
 <img width="653" height="758" alt="Big3NixPodJust" src="https://github.com/user-attachments/assets/0044d938-f98a-44a2-9057-2fa8246e9a1a" />
 
 A GitHub **template repository**: clone it, install two dependencies, and you have a
-full multi-service dev environment identical on every (Linux) machine that can be expanded to **ANY** kind of project.  
+full multi-service dev environment identical on every Linux or macOS machine that can be expanded to **ANY** kind of project.  
 
 This is the **governed** variant of the **Big-3-Template**: the same
 out-of-the-box Nix + Just + rootless Podman stack, plus **repository
@@ -122,7 +122,13 @@ The dev shell now loads automatically whenever you `cd` into the repo.
 - Linux with [Nix](https://nixos.org/download/) and flakes enabled
   (`experimental-features = nix-command flakes` in `nix.conf`, or use the
   [Determinate installer](https://install.determinate.systems/)).
-- Rootless Podman needs `newuidmap`/`newgidmap` (the `uidmap` package on most
+- **macOS** (Intel or Apple silicon): Nix as above, plus Podman from the host
+  ([Podman Desktop](https://podman-desktop.io/) or `brew install podman`), with
+  a running machine (`podman machine init` once, then `podman machine start`).
+  The shell exports the machine's API socket as `DOCKER_HOST`/`DOCKER_SOCK`;
+  the Linux-only steps below (in-repo storage config, socket service) are
+  skipped.
+- Linux: rootless Podman needs `newuidmap`/`newgidmap` (the `uidmap` package on most
   distros) and a `/etc/subuid` + `/etc/subgid` entry for your user.
 
 Shorten in a few install command for Ubuntu:

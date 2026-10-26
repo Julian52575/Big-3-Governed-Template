@@ -46,7 +46,7 @@ jobs:
           warm: "false"
 
       - name: Check the flake evaluates
-        run: nix flake check --no-build
+        run: nix flake check --no-build --all-systems
 
       - name: Enter the dev shell and sanity-check tooling
         run: |
