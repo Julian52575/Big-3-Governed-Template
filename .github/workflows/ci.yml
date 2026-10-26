@@ -154,6 +154,97 @@ jobs:
           GH_TOKEN: ${{ github.token }} # online audits (impostor commits, known-vulnerable actions)
         run: pipx run zizmor==1.31.1 --format github .github/
 
+  # Software-composition analysis of THIS branch: osv-scanner finds every
+  # lockfile in the repo (npm, pip, go, cargo, maven, ...) and checks it
+  # against the OSV database, so it needs no per-language setup.
+  #
+  # Gate: fails on any Critical or High advisory (CVSS >= 7), on 5 or more
+  # Moderate+Low, or when the scan cannot complete -- an unknown posture is not
+  # a passing one. No lockfile at all passes. Advisories without a CVSS score
+  # count as Moderate. Counts and advisories land in the job summary and the
+  # raw report uploads as an artifact, pass or fail.
+  dependencies-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Scan lockfiles with osv-scanner 2.7.0
+        run: |
+          set -uo pipefail
+          mkdir -p dependency-audit
+          raw=dependency-audit/osv.json
+
+          rc=0
+          docker run --rm -v "$PWD:/repo:ro" -w /repo \
+            ghcr.io/google/osv-scanner@sha256:4f3b7e2c64b9d38a5febc5a7e4a3dfef1d1362f726dea7a2ef4762b46469fcd0 \
+            scan source -r --format json . > "$raw" || rc=$?
+          # 0 = clean, 1 = advisories found, 128 = no lockfile; anything else failed.
+          case "$rc" in
+            128)
+              echo "### Dependency audit: no lockfile found -- nothing to scan" >> "$GITHUB_STEP_SUMMARY"
+              exit 0 ;;
+            0 | 1) ;;
+            *)
+              echo "::error::osv-scanner failed (exit $rc) -- an unknown posture cannot clear the gate"
+              exit 1 ;;
+          esac
+
+          # One row per advisory group: severity bucket, package, lockfile, ids.
+          jq -r '
+            .results[]? | .source.path as $src | .packages[]? | .package as $p | .groups[]?
+            | (.max_severity // "" | if . == "" then 5 else tonumber end) as $s
+            | [ (if $s >= 9 then "critical" elif $s >= 7 then "high" elif $s >= 4 then "moderate" else "low" end),
+                "\($p.ecosystem)/\($p.name)@\($p.version)", ($src | sub("^/repo/"; "")), (.ids | join(" ")) ]
+            | @tsv' "$raw" > dependency-audit/rows.tsv
+
+          count() { awk -F'\t' -v k="$1" '$1 == k' dependency-audit/rows.tsv | wc -l; }
+          crit=$(count critical); high=$(count high); mod=$(count moderate); low=$(count low)
+          ch=$((crit + high)); ml=$((mod + low))
+
+          {
+            echo "### Dependency audit (osv-scanner)"
+            echo
+            echo "| Critical | High | Moderate | Low |"
+            echo "| --- | --- | --- | --- |"
+            echo "| $crit | $high | $mod | $low |"
+            echo
+            echo "**Gate:** any Critical or High fails; 5 or more Moderate+Low fails."
+            echo
+            echo "<details><summary>Advisories</summary>"
+            echo
+            echo "| Severity | Package | Lockfile | Advisory |"
+            echo "| --- | --- | --- | --- |"
+            awk -F'\t' '{ printf "| %s | `%s` | `%s` | %s |\n", $1, $2, $3, $4 }' dependency-audit/rows.tsv
+            echo
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          fail=0
+          if [ "$ch" -gt 0 ]; then
+            echo "::error::${crit} critical + ${high} high dependency advisories (allowed: 0) -- see the job summary"
+            fail=1
+          fi
+          if [ "$ml" -ge 5 ]; then
+            echo "::error::${ml} moderate + low dependency advisories (allowed: fewer than 5) -- see the job summary"
+            fail=1
+          fi
+          exit "$fail"
+
+      - name: Upload the raw audit report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dependency-audit
+          path: dependency-audit
+          if-no-files-found: ignore
+
   # Single stable check for the branch ruleset to require.
   # Add a job to `needs` here to make it mandatory to the branch ruleset.
   ci-required:
@@ -164,6 +255,7 @@ jobs:
       - compose-lint
       - workflow-lint
       - zizmor
+      - dependencies-audit
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
