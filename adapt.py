@@ -19,8 +19,15 @@ GitHub side (needs `gh auth login` as a repo admin):
   --governance  run scripts/apply-governance.sh (ruleset + repo settings)
   --workflow    check that everything above is configured; exits 1 on errors
 
-Common options: --yes accepts every default without asking, --dry-run only
-prints what would change. Standard library only; needs Python 3.9+.
+Every command that changes something (git config, ssh-keygen, gh ... set,
+apply-governance.sh) is shown and only runs once you accept it. --accept-cmd
+runs them without asking; --print-cmd never runs them and prints them for you
+to run yourself. Read-only queries (git remote, gh ... list, gh api reads) run
+on their own.
+
+Common options: --yes accepts every default answer without asking (it never
+accepts a command), --dry-run only prints what would change. Standard library
+only; needs Python 3.9+.
 """
 
 from __future__ import annotations
@@ -30,6 +37,7 @@ import getpass
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -74,9 +82,33 @@ SEMVER = re.compile(r"^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$")
 
 
 class Ui:
-    def __init__(self, yes: bool, dry_run: bool):
+    def __init__(self, yes: bool, dry_run: bool, cmd_mode: str = "ask"):
         self.yes = yes
         self.dry_run = dry_run
+        self.cmd_mode = cmd_mode  # "ask", "accept" (--accept-cmd) or "print" (--print-cmd)
+
+    def command(self, cmd: list[str], *, stdin: str | None = None, shown: str | None = None,
+                interactive: bool = False) -> bool:
+        """Propose `cmd`; run it only once accepted. True if it ran and succeeded.
+
+        `shown` replaces the displayed command line, e.g. to keep a secret out of it.
+        """
+        line = shown or shlex.join(cmd)
+        print(f"  $ {line}")
+        if self.dry_run or self.cmd_mode == "print":
+            return False
+        if self.cmd_mode == "ask":
+            answer = input("    run it? [y/N] ").strip().lower()
+            if not answer.startswith("y"):
+                print("    not run")
+                return False
+        if interactive:
+            return subprocess.run(cmd, check=False).returncode == 0
+        r = subprocess.run(cmd, check=False, text=True, capture_output=True, input=stdin)
+        out = (r.stdout if r.returncode == 0 else r.stderr).strip()
+        if out:
+            print("    " + out.replace("\n", "\n    "))
+        return r.returncode == 0
 
     def ask(self, prompt: str, default: str = "") -> str:
         if self.yes:
@@ -254,29 +286,24 @@ def step_signing(ui: Ui) -> None:
     if choice == "new":
         key = Path.home() / ".ssh" / "id_ed25519_signing"
         email = git("config", "user.email") or "signing"
-        print(f"  generating {key}")
-        if not ui.dry_run:
-            subprocess.run(["ssh-keygen", "-t", "ed25519", "-C", email, "-f", str(key)], check=True)
+        generated = ui.command(["ssh-keygen", "-t", "ed25519", "-C", email, "-f", str(key)], interactive=True)
         pub = Path(f"{key}.pub")
+        if not generated and ui.cmd_mode != "print" and not ui.dry_run:
+            print("  skipped: no key generated")
+            return
     elif choice.isdigit() and 1 <= int(choice) <= len(keys):
         pub = keys[int(choice) - 1]
     else:
         pub = Path(choice).expanduser()
-    if not ui.dry_run and not pub.exists():
-        print(f"  skipped: {pub} not found")
-        return
-    settings = {"gpg.format": "ssh", "user.signingkey": str(pub), "commit.gpgsign": "true", "tag.gpgsign": "true"}
-    for key, value in settings.items():
-        print(f"  git config --local {key} {value}")
-        if not ui.dry_run:
-            git("config", "--local", key, value)
+        if not pub.exists():
+            print(f"  skipped: {pub} not found")
+            return
+    for key, value in {"gpg.format": "ssh", "user.signingkey": str(pub),
+                       "commit.gpgsign": "true", "tag.gpgsign": "true"}.items():
+        ui.command(["git", "config", "--local", key, value])
     print("  Commits also need a sign-off: use `git commit -s`.")
-    if shutil.which("gh") and ui.confirm("Add this key to your GitHub account as a *signing* key with gh?"):
-        if not ui.dry_run:
-            r = run(["gh", "ssh-key", "add", str(pub), "--type", "signing", "--title", "commit signing"], check=False)
-            print("  " + (r.stdout or r.stderr).strip())
-    else:
-        print("  Add it on GitHub: Settings -> SSH and GPG keys -> New SSH key -> Key type: Signing Key.")
+    print("  Register the key on GitHub as a *Signing Key* (Settings -> SSH and GPG keys), or with gh:")
+    ui.command(["gh", "ssh-key", "add", str(pub), "--type", "signing", "--title", "commit signing"])
 
 
 # --- GitHub steps -------------------------------------------------------------
@@ -308,25 +335,27 @@ def step_gh_vars(ui: Ui) -> None:
         print(f"    {help_text}")
         if ui.yes:
             continue
-        prompt = f"    value for {name}: "
+        if kind == "secret" and ui.cmd_mode == "print":
+            # gh prompts for the value itself, so it never lands in the printout
+            ui.command(["gh", "secret", "set", name, "-R", slug])
+            continue
+        prompt = f"    value for {name} (blank skips): "
         # getpass keeps secrets off the screen; stdin keeps them out of argv
         value = getpass.getpass(prompt) if kind == "secret" else input(prompt).strip()
         if not value:
             continue
-        if ui.dry_run:
-            print(f"    would set {name}")
-            continue
-        r = run(["gh", kind, "set", name, "-R", slug], check=False, input_text=value)
-        print("    " + ("saved" if r.returncode == 0 else f"failed: {r.stderr.strip()}"))
+        if kind == "secret":
+            cmd = ["gh", "secret", "set", name, "-R", slug]
+            ui.command(cmd, stdin=value, shown=shlex.join(cmd) + "   # value sent on stdin")
+        else:
+            ui.command(["gh", "variable", "set", name, "-R", slug, "--body", value])
 
 
 def step_governance(ui: Ui) -> None:
     slug = require_gh(origin_slug())
     heading(f"Repository governance for {slug}")
     print("  Applies .github/rulesets/main.json and the merge, Actions and security settings.")
-    if ui.dry_run or not ui.confirm("Run scripts/apply-governance.sh now?"):
-        return
-    subprocess.run(["bash", "scripts/apply-governance.sh", slug], check=False)
+    ui.command(["bash", "scripts/apply-governance.sh", slug], interactive=True)
 
 
 def step_workflow_check(_: Ui) -> int:
@@ -420,6 +449,7 @@ examples:
   ./adapt.py --gh-vars       set Actions secrets and variables with gh
   ./adapt.py --governance    apply the branch ruleset and repo settings
   ./adapt.py --workflow      check the result; exit status 1 on a failure
+  ./adapt.py --signing --print-cmd   only print the git config commands
 
 Typical order after "Use this template": ./adapt.py, commit, push,
 ./adapt.py --gh-vars --governance, then ./adapt.py --workflow.
@@ -438,11 +468,16 @@ See README-ADAPT.md for what each step changes.""",
     github.add_argument("--workflow", action="store_true", help="check the whole configuration; exit 1 on errors")
     parser.add_argument("-y", "--yes", action="store_true", help="accept every default, never prompt")
     parser.add_argument("-n", "--dry-run", action="store_true", help="print what would change, change nothing")
+    cmds = parser.add_mutually_exclusive_group()
+    cmds.add_argument("--accept-cmd", action="store_true",
+                      help="run every proposed command without asking (default: ask for each)")
+    cmds.add_argument("--print-cmd", action="store_true",
+                      help="never run commands; print them for you to run")
     args = parser.parse_args()
 
     root = Path(git("rev-parse", "--show-toplevel"))
     os.chdir(root)
-    ui = Ui(args.yes, args.dry_run)
+    ui = Ui(args.yes, args.dry_run, "accept" if args.accept_cmd else "print" if args.print_cmd else "ask")
 
     selected = [fn for name, fn in LOCAL_STEPS if getattr(args, name)]
     remote_steps = args.gh_vars or args.governance or args.workflow
@@ -460,7 +495,9 @@ See README-ADAPT.md for what each step changes.""",
     except (KeyboardInterrupt, EOFError):
         print("\naborted")
         return 130
-    if selected and not args.dry_run:
+    if args.print_cmd:
+        print("\nNothing was run: run the `$` commands above yourself.")
+    elif selected and not args.dry_run:
         print("\nDone. Review with `git diff`, then commit (git commit -s).")
     return 0
 

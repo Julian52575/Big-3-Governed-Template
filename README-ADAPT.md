@@ -16,8 +16,21 @@ git commit -sam "chore: adapt the template" && git push
 ./adapt.py --workflow                  # 3. check everything; exit 1 on a failure
 ```
 
-Add `--dry-run` to see what would change, or `--yes` to accept every default
-without prompting (the signing step is skipped with `--yes`).
+**Commands are never run behind your back.** Each one that changes something
+(`git config`, `ssh-keygen`, `gh … set`, `apply-governance.sh`) is printed
+and only runs once you answer `y`. File edits (`--clean`, `--rename`, …) ask
+too.
+
+| Option | Effect |
+| ------ | ------ |
+| *(default)* | propose each command; run it only if you accept |
+| `--accept-cmd` | run every proposed command without asking |
+| `--print-cmd` | never run commands; print them for you to run yourself (secret values are never printed: `gh secret set` asks for them) |
+| `--yes` | accept every default *answer* (version, file edits); commands still follow the options above; signing is skipped |
+| `--dry-run` | change nothing, print what would change |
+
+Read-only queries (`git remote`, `gh … list`, `gh api` reads) run on their
+own; `--workflow` only reads.
 
 ## 1. Local setup (every contributor)
 
