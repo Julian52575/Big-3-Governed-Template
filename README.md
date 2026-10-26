@@ -158,6 +158,7 @@ Windows).
 | `just rebuild <svc>` | rebuild one service from scratch, the rest keep running |
 | `just rm` | stop the stack and delete its images (next `up` rebuilds) |
 | `just nuke` | also delete volumes (asks first; refuses on `main` or a release tag unless `NUKE_ANYWAY=1`) |
+| `just compose-diagnostic` | diagnose a broken stack: what looks wrong, in plain words, plus logs and state; saved as `compose-diagnostic-<time>.md` to share (credentials masked) |
 | `just lint-workflows` | actionlint + zizmor + schema check, as CI does |
 | `just database-dump` / `database-pipe <file>` | Postgres backup/restore in `pg_dump -Fc` format (`db_backup_<timestamp>.dump`, gitignored) |
 
