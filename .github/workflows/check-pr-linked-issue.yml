@@ -37,6 +37,13 @@ jobs:
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
         with:
           script: |
+            // release-please opens its Release PR without a linked issue.
+            const headRef = context.payload.pull_request.head.ref;
+            if (headRef.startsWith('release-please-')) {
+              core.info(`Skipping linked-issue check for release-please branch "${headRef}".`);
+              return;
+            }
+
             const { repository } = await github.graphql(
               `query ($owner: String!, $repo: String!, $number: Int!) {
                 repository(owner: $owner, name: $repo) {

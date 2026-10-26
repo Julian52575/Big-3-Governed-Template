@@ -3,6 +3,13 @@ name: ci
 on:
   push:
     branches: [main]
+    # Only on push: a required check filtered out of a PR would hang as "expected".
+    paths-ignore:
+      - "*.md"
+      - ".gitignore"
+      - ".github/ISSUE_TEMPLATE/**"
+      - ".github/rulesets/**"
+      - ".sast/report/**"
   pull_request:
   workflow_dispatch: # allow a manual re-run from the Actions tab
 
