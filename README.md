@@ -100,9 +100,8 @@ scripts/apply-governance.sh [owner/name]
 It is safe to re-run, and sets:
 
 - **Branch ruleset** from `.github/rulesets/main.json`: PR with 1 approval
-  (code owners when a `CODEOWNERS` exists), resolved threads, required checks
-  `ci-required` + `conventional-title` + `linked-issue` on an up-to-date
-  branch, linear history, no force-push or deletion, no bypass. It can also be
+  (code owners when a `CODEOWNERS` exists), resolved threads, the single
+  required check `ci-required` on an up-to-date branch, linear history, no force-push or deletion, no bypass. It can also be
   imported by hand: *Settings → Rules → Rulesets → Import*.
   See [About rulesets](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets).
 - **Merges:** squash only, PR title as the commit, branches auto-deleted,
@@ -128,8 +127,7 @@ All workflows follow the same hardening: actions pinned to a commit SHA
 | -------- | ---- |
 | `ci.yml` | flake evaluation, hadolint, compose check, actionlint, zizmor, [osv-scanner](https://google.github.io/osv-scanner/) dependency audit, boots the stack and calls every route; all gated by the single `ci-required` job |
 | `ci-sast.yml` | [CodeQL](https://codeql.github.com/docs/) always, [SonarQube Cloud](https://docs.sonarsource.com/sonarqube-cloud/) when its token is set; see [`.sast/README.md`](.sast/README.md) |
-| `check-conventional-commit-pr-title.yml` | PR title is a Conventional Commit |
-| `check-pr-linked-issue.yml` | PR closes at least one issue |
+| `check-conventional-commit-pr-title.yml` | PR title is a Conventional Commit (advisory, not required) |
 | `openssf-scorecard.yml` | weekly [OpenSSF Scorecard](https://scorecard.dev/); results go to the `openssf-update` branch and an issue with a one-click PR link. The README badge reads the merged result from `main`. |
 | `release-please.yml` | keeps a [release-please](https://github.com/googleapis/release-please) Release PR open; merging it tags and publishes the release |
 | `release-to-ghcr.yml` | on release: builds each image, pushes to GHCR with SBOM + provenance, signs keyless with [cosign](https://docs.sigstore.dev/cosign/signing/overview/) |

@@ -98,7 +98,7 @@ Edit the lines marked `CUSTOMISE`:
 
 Nothing to configure for: `devshell`, `dockerfile-lint`, `compose-lint`,
 `workflow-lint`, `zizmor` and `dependencies-audit` (they discover files on
-their own), `check-pr-linked-issue.yml`, `openssf-scorecard.yml`.
+their own), `openssf-scorecard.yml`.
 
 Keep `ci-required`'s `needs:` list in `ci.yml` in step with your jobs: a job
 is only mandatory once it is listed there. When you add a workflow, follow the
@@ -124,8 +124,7 @@ rules in `AGENTS.md` and run `just lint-workflows`.
 
 ## 8. Check it works
 
-1. Open a PR that closes an issue. `ci-required`, `conventional-title` and
-   `linked-issue` must go green and block the merge until they do.
+1. Open a PR. `ci-required` must go green and blocks the merge until it does.
 2. Merge it. release-please opens a Release PR; merging that creates a tag,
    and `release-to-ghcr.yml` pushes signed images. Verify one (cosign v3+):
    ```bash

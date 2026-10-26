@@ -7,7 +7,7 @@ changing anything; they are the source of truth. The hard rules:
   `<type>[(scope)][!]: description`, lower-case subject, no trailing period.
 - **Signed, signed-off commits**: `git commit -s` with signing configured;
   the `commit-msg` hook rejects anything else.
-- **Every PR closes an issue** (`Closes #NNN` in the body). Branch from `main`;
+- **Link the issue** a PR resolves (`Closes #NNN` in the body). Branch from `main`;
   never push to `main`.
 - **Workflows** (`.github/`):
   - pin every action to a full commit SHA with a `# vX.Y.Z` comment that

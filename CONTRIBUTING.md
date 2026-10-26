@@ -1,7 +1,7 @@
 # Contributing
 
-Nothing reaches `main` except through a pull request, and every pull request
-closes an issue. Read the [README](README.md) for the stack itself, and follow
+Nothing reaches `main` except through a pull request, and pull requests
+should close the issue they resolve. Read the [README](README.md) for the stack itself, and follow
 the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Setup
@@ -60,15 +60,16 @@ lives in both `.githooks/check-conventional-commit-msg` and
 
 ### 3. Pull requests
 
-- Fill in the template; `Closes #NNN` is required. The PR title becomes the
-  squash commit on `main`.
+- Fill in the template and link the issue with `Closes #NNN`. The PR title
+  becomes the squash commit on `main`.
 - 1 approval (plus code owners where set) and every thread resolved.
-- The ruleset requires these checks, on a branch up to date with `main`:
+- The ruleset requires a single check, `ci-required`, on a branch up to date
+  with `main`. It aggregates the `ci.yml` jobs below; `conventional-title`
+  runs too but is advisory.
 
 | Check | Enforces | Reproduce locally |
 | ----- | -------- | ----------------- |
-| `conventional-title` | PR title (and a lone commit) is a Conventional Commit | — edit the title, it re-runs |
-| `linked-issue` | the PR closes an issue | — add `Closes #NNN` |
+| `conventional-title` (advisory) | PR title (and a lone commit) is a Conventional Commit | — edit the title, it re-runs |
 | `ci-required` ← `devshell` | the flake evaluates | `nix flake check --no-build` |
 | `ci-required` ← `dockerfile-lint` | hadolint on every Dockerfile | `hadolint <file>` |
 | `ci-required` ← `compose-lint` | compose file resolves | `podman-compose config` |
@@ -77,7 +78,7 @@ lives in both `.githooks/check-conventional-commit-msg` and
 | `ci-required` ← `stack` | the stack boots and every route answers | `just up -d && just logs` |
 | `ci-sast-required` (opt-in) | no CodeQL error; SonarQube gate passes | see [`.sast/README.md`](.sast/README.md) |
 
-Before opening: issue linked, branch rebased, `just lint-workflows` run if you
+Before opening: issue linked, PR title a Conventional Commit, branch rebased, `just lint-workflows` run if you
 touched `.github/`, tests and docs updated, AI-assisted changes reviewed line
 by line.
 
