@@ -34,7 +34,6 @@ what breaks if you skip it. Steps marked *(optional)* switch on extra features.
 | `release-please-config.json` | `"package-name": "REPO"`; `"release-type": "simple"` → your language (`node`, `python`, `rust`, …) so version files are bumped | releases work, but no package version file is updated |
 | `.release-please-manifest.json` | your current version, if not `0.0.0` | the first release is computed from `0.0.0` |
 | `.readme-badges/`, `SCORECARD.md` | delete; the Scorecard workflow regenerates them | the template's old results are shown |
-| `docs/IMPORT-SUGGESTIONS.md` | delete (template build notes) | — |
 
 ## 3. Repository settings
 
