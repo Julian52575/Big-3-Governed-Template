@@ -17,6 +17,11 @@
 # poll every second so `up --wait` and `depends_on` return as soon as a
 # service is ready. Write them as CMD-SHELL strings: podman-compose re-quotes
 # CMD arrays and breaks inline code.
+#
+# Every volume is named (listed under `volumes:` at the end): an anonymous one
+# escapes `just compose-diagnostic` and the project's cleanup. That includes
+# paths an image declares with VOLUME (postgres: /var/lib/postgresql) -- mount
+# a named volume there. CI's `stack` job fails on any anonymous volume.
 
 services:
   proxy:
@@ -58,7 +63,7 @@ services:
       - db-data:/var/lib/postgresql
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-app} -d ${POSTGRES_DB:-app}"]
       interval: 1s
       timeout: 1s
       retries: 10

@@ -111,6 +111,10 @@ attach service:
 _cid service:
     @{{tool}} ps -q --filter "label=com.docker.compose.project.working_dir={{justfile_directory()}}" --filter "label=com.docker.compose.service={{service}}" | head -n1
 
+# Diagnose the stack: prints what looks wrong; full report in .compose-diagnostic-<time>.md to share
+compose-diagnostic:
+    @python3 scripts/compose_diagnostic.py --tool {{tool}}
+
 #### Lint
 
 # Lint every workflow: syntax + shellcheck, security audit, schema
