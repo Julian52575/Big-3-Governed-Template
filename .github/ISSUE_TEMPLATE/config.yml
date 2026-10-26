@@ -2,7 +2,7 @@
 blank_issues_enabled: false
 
 contact_links:
-  # SECURITY: replace OWNER/REPO with this repository after using the template.
+  # SECURITY: must point at this repository; `./adapt.py --rename` sets it.
   - name: Security vulnerability
     url: https://github.com/OWNER/REPO/security/advisories/new
     about: Report privately through a security advisory. Never open a public issue for a vulnerability.
