@@ -26,4 +26,4 @@ db_backup_*.sql
 __pycache__/
 
 # --- `just compose-diagnostic` reports --------------------------------
-compose-diagnostic-*.md
+.compose-diagnostic-*.md

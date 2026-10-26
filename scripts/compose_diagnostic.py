@@ -62,12 +62,13 @@ class Report:
             parts.append("```\n" + self.mask(body.rstrip()) + "\n```")
         self.sections.append("\n\n".join(parts))
 
+    def summary(self) -> str:
+        if not self.findings:
+            return "- Nothing obviously wrong. Share the report with the DevOps team if the problem persists."
+        return "\n".join(f"- {f}" for f in self.findings)
+
     def render(self, header: str) -> str:
-        if self.findings:
-            summary = "\n".join(f"- {f}" for f in self.findings)
-        else:
-            summary = "- Nothing obviously wrong. Share this report with the DevOps team if the problem persists."
-        return f"{header}\n\n## What looks wrong\n\n{summary}\n\n" + "\n\n".join(self.sections) + "\n"
+        return f"{header}\n\n## What looks wrong\n\n{self.summary()}\n\n" + "\n\n".join(self.sections) + "\n"
 
 
 def run(cmd: list[str], timeout: int = 60) -> tuple[int, str]:
@@ -141,10 +142,11 @@ def check_config(rep: Report, compose: list[str]) -> list[str]:
     unresolved = sorted(set(re.findall(r"\$\{(\w+)", out)))
     if code != 0:
         rep.problem("`docker-compose.yml` does not resolve; the error is under *compose config*.")
+        # only the error: the resolved file itself would bloat the report
+        rep.section("compose config", out[-3000:], " ".join(compose + ["config"]))
     elif unresolved:
         rep.problem(f"Variables left unreplaced (Podman keeps unset ones as text): {', '.join(unresolved)}. "
                     "Define them in `.env`.")
-    rep.section("compose config", out[-6000:], " ".join(compose + ["config"]))
     code, services = run(compose + ["config", "--services"])
     return services.split() if code == 0 else []
 
@@ -246,7 +248,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--tool", default=shutil.which("podman") and "podman" or "docker",
                         help="container tool (default: podman if installed, else docker)")
-    parser.add_argument("--out", default="", help="report file (default: compose-diagnostic-<time>.md)")
+    parser.add_argument("--out", default="", help="report file (default: .compose-diagnostic-<time>.md)")
     args = parser.parse_args()
 
     root = Path(run(["git", "rev-parse", "--show-toplevel"])[1] or ".").resolve()
@@ -271,11 +273,12 @@ def main() -> int:
 
     header = f"# Compose diagnostic — {root.name} — {datetime.now().isoformat(timespec='seconds')}"
     text = rep.render(header)
-    out = Path(args.out or root / f"compose-diagnostic-{stamp}.md")
+    out = Path(args.out or root / f".compose-diagnostic-{stamp}.md")
     out.write_text(text, encoding="utf-8")
-    print(text)
-    print(f"Saved to {out} — attach it to an issue or send it to the DevOps team. "
-          "Values from .env are masked; skim it before sharing.", file=sys.stderr)
+    # the terminal gets the verdict only; logs and state are in the file
+    print(f"What looks wrong:\n{rep.summary()}\n")
+    print(f"Full report: {out}\nAttach it to an issue or send it to the DevOps team "
+          "(.env values and credentials are masked; skim it before sharing).")
     return 0
 
 
