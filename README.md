@@ -280,20 +280,6 @@ Pair it with the local hook: each contributor runs
 `git config hooks.requireSignature true` so `.githooks/check-signature`
 rejects a commit before it is made (see CONTRIBUTING.md → Commit hooks).
 
-**Architecture Decision Records (Discussions).** The ADR flow in
-CONTRIBUTING.md needs two manual steps, which the script does not do:
-
-1. *Settings → General → Features* → enable **Discussions**.
-2. *Discussions → Categories* → create **Architecture Decision Records**
-   (exact name — `adr-discussion-sync.yml` filters on it) with the
-   *Open-ended discussion* format. Its form is
-   `.github/DISCUSSION_TEMPLATE/architecture-decision-records.yml`.
-
-Closing an *Accepted* ADR commits it to `docs/adr/` on the branch named in the
-discussion. Set the secret `ADR_SYNC_GITHUB_TOKEN` (PAT, Contents: write) if
-that branch is protected; otherwise the built-in token is used. Replace
-`OWNER/REPO` in the issue forms' ADR links.
-
 #### BONUS: Org-level (can't be scripted per-repo)
 
 Set these once for the organisation, not the repo:  
@@ -401,13 +387,12 @@ customisation: [`.sast/README.md`](.sast/README.md).
 
 ### Optional automation
 
-Shipped switched off; turn each on with a repository variable
+Shipped switched off; turn it on with a repository variable
 (*Settings → Secrets and variables → Actions → Variables*):
 
 | Workflow | Enable with | Does |
 | -------- | ----------- | ---- |
 | `make-pr-draft.yml` | `MAKE_PR_DRAFT=true` | converts new PRs (except release-please's) to drafts and asks the author to mark them ready |
-| `notify-discord-review-requested.yml` | `DISCORD_NOTIFY=true` + secret `DISCORD_WEBHOOK_URL` | posts review requests to Discord, which its GitHub webhook ignores |
 
 ## Releasing
 
@@ -460,14 +445,9 @@ docs/Troubleshoot.md      incident log: error, cause, solution
 .github/workflows/release-to-ghcr.yml  build, SBOM, sign and push images on release
 release-please-config.json     release-please settings (release type, changelog sections)
 .release-please-manifest.json  current version
-.github/workflows/adr-discussion-sync.yml  closed + Accepted ADR discussion -> docs/adr/<title>-#<n>.md
-.github/DISCUSSION_TEMPLATE/   ADR discussion form
-.github/actionlint.yaml        actionlint config (allows the discussion `closed` trigger)
-docs/adr/                      accepted Architecture Decision Records
 .github/workflows/ci-sast.yml  CodeQL + opt-in SonarQube; `ci-sast-required`
 .sast/                         SAST config, report scripts, committed reports
 .github/workflows/make-pr-draft.yml  opt-in: new PRs start as drafts
-.github/workflows/notify-discord-review-requested.yml  opt-in: review requests to Discord
 nix/tools.nix                  CLIs pinned to upstream releases (zizmor, pin-github-action)
 .github/rulesets/main.json     default-branch ruleset, in GitHub export format
 scripts/apply-governance.sh    apply the ruleset + merge/security settings via `gh`

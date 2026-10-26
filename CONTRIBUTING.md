@@ -18,14 +18,12 @@ stack itself, and follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ```mermaid
 flowchart LR
-    ADR["ADR discussion<br/>(optional, see below)"]
     ISSUE["Issue<br/>(Feature / Bug / R&D / Debt)"]
     BRANCH["Branch"]
     PR["Pull request &rarr; main"]
     MAIN["main"]
     RELEASE["Release<br/>(tag + GitHub Release)"]
 
-    ADR -- "Accepted" --> ISSUE
     ISSUE --> BRANCH
     ISSUE -- "Closes #NNN" --> PR
     BRANCH --> PR
@@ -38,33 +36,13 @@ You can always work *ahead* (push a branch, draft an issue), but you cannot
 
 | To do this...           | You first need...                                        |
 | ----------------------- | -------------------------------------------------------- |
-| Start work on an issue  | An **Accepted** ADR discussion, for architectural changes |
 | Open a pull request     | An existing issue the PR closes (`Closes #NNN`)          |
 | Merge to `main`         | A green PR with 1 approval and every required check      |
 | Cut a release           | Merge the `release-please` Release PR                    |
 
-## 1. Architecture Decision Records
+## 1. Issues and labels
 
-Changes to architecture, tooling, data model or a cross-cutting convention
-start as a discussion in the **Architecture Decision Records** category (needs
-Discussions enabled, see the README).
-
-1. Open a discussion with the ADR form: *Context*, *Options*, *Decision*,
-   *Impact size*.
-2. Debate. Set **Decision** to `Accepted`, `Rejected` or `Superseded`.
-3. Once implemented, leave a summary comment, fill the **Branch** field, and
-   **close** the discussion. `adr-discussion-sync.yml` renders it into
-   `docs/adr/<title>-#<n>.md` on that branch. Closing with a comment
-   `/commit <branch>` overrides the field. A missing or invalid branch reopens
-   the discussion with a hint.
-
-A placeholder issue may exist without an accepted ADR, but should not be
-worked on until there is one.
-
-## 2. Issues and labels
-
-- Blank issues are disabled; use one of the four forms (below). Each has an
-  optional **ADR discussion** link field.
+- Blank issues are disabled; use one of the four forms (below).
 - Security vulnerabilities are **never** public issues — use a private
   security advisory (linked from the *New issue* page).
 
@@ -76,7 +54,7 @@ worked on until there is one.
 
 When adding a label, give it a description and document it here in the same PR.
 
-## 3. Branching and commits
+## 2. Branching and commits
 
 - Branch from `main`, prefixed by type or issue number: `feat/add-grid`,
   `42-fix-proxy-crash`.
@@ -108,7 +86,7 @@ git commit -s ...                         # adds the Signed-off-by trailer
 Add the same key on GitHub as a **Signing Key**. `--no-verify` skips the hooks;
 the enforced gates are in CI and the branch ruleset.
 
-## 4. Pull requests
+## 3. Pull requests
 
 - Fill in the template; `Closes #NNN` is **required**.
 - The PR title becomes the squash commit on `main`, so it must be a
@@ -136,7 +114,6 @@ with the branch up to date with `main`.
 
 ### Checklist before opening a PR
 
-- [ ] An **Accepted** ADR exists for architectural changes
 - [ ] An issue exists, and the PR body says `Closes #NNN`
 - [ ] The branch is rebased on `main`
 - [ ] Commits and the PR title are Conventional Commits
@@ -144,7 +121,7 @@ with the branch up to date with `main`.
 - [ ] Tests and docs updated if behaviour changed
 - [ ] AI-assisted changes reviewed line by line by a human
 
-## 5. Local testing tools
+## 4. Local testing tools
 
 `nix develop` provides these, so CI checks can run before pushing:
 
@@ -161,7 +138,7 @@ with the branch up to date with `main`.
 
 `just lint-workflows` runs the first three the way CI does.
 
-## 6. Troubleshooting
+## 5. Troubleshooting
 
 Record every incident and its fix in [`docs/Troubleshoot.md`](docs/Troubleshoot.md).
 
@@ -172,7 +149,7 @@ Record every incident and its fix in [`docs/Troubleshoot.md`](docs/Troubleshoot.
   the new occurrence to that entry instead of creating another one.
 - Entries may link earlier ones ("same cause as [X](#x)").
 
-## 7. Releasing
+## 6. Releasing
 
 Releases are never cut by hand. `release-please` keeps one **Release PR**
 open against `main`, with the next version (from Conventional Commit history)
@@ -180,7 +157,7 @@ and the CHANGELOG. Merging it tags the release (no `v` prefix), publishes the
 GitHub Release, and `release-to-ghcr.yml` pushes signed images to GHCR.
 Don't bump versions by hand.
 
-## 8. Related automation
+## 7. Related automation
 
 | Workflow | Trigger | Purpose |
 | -------- | ------- | ------- |
@@ -190,10 +167,8 @@ Don't bump versions by hand.
 | `check-pr-linked-issue.yml` | PR | `linked-issue` |
 | `release-please.yml` | push to `main` | maintain the Release PR, tag releases |
 | `release-to-ghcr.yml` | release created | build, SBOM, sign and push images |
-| `adr-discussion-sync.yml` | ADR discussion closed | commit the ADR into `docs/adr/` |
 | `openssf-scorecard.yml` | weekly (Mon 09:00 UTC) | supply-chain audit; issue + one-click PR |
 | `make-pr-draft.yml` | PR opened (opt-in) | convert new PRs to draft |
-| `notify-discord-review-requested.yml` | review requested (opt-in) | post to Discord |
 
 ## Reference
 

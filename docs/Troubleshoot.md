@@ -1,7 +1,7 @@
 # Troubleshoot
 
 Known incidents with their cause and fix. Rules for adding entries are in
-[CONTRIBUTING.md](../CONTRIBUTING.md#6-troubleshooting).
+[CONTRIBUTING.md](../CONTRIBUTING.md#5-troubleshooting).
 
 <!-- Example entry -- copy, then delete this comment:
 
