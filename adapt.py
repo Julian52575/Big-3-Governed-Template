@@ -11,13 +11,13 @@ Run from the repository root. With no flag, runs every local step in order
   --version     write the current version to .release-please-manifest.json
   --contact     fill the Code of Conduct enforcement contact
   --sonar       fill the SonarQube Cloud organisation and project keys
-  --signing     set up SSH commit signing for this clone only (git config --local)
+  --signing     propose `git config --local` commands for SSH commit signing
 
-GitHub side (needs `gh auth login` as a repo admin):
+GitHub side (needs `gh auth login` as a repo admin, and the repo pushed):
 
-  --gh-vars     prompt for each Actions secret and variable the workflows use
-  --governance  run scripts/apply-governance.sh (ruleset + repo settings)
-  --workflow    check that everything above is configured; exits 1 on errors
+  --gh-vars     ask for each Actions secret and variable, propose `gh ... set`
+  --governance  propose scripts/apply-governance.sh (ruleset + repo settings)
+  --workflow    only reads: check everything above; exits 1 on a failure
 
 Every command that changes something (git config, ssh-keygen, gh ... set,
 apply-governance.sh) is shown and only runs once you accept it. --accept-cmd
@@ -25,8 +25,9 @@ runs them without asking; --print-cmd never runs them and prints them for you
 to run yourself. Read-only queries (git remote, gh ... list, gh api reads) run
 on their own.
 
-Common options: --yes accepts every default answer without asking (it never
-accepts a command), --dry-run only prints what would change. Standard library
+Common options: --yes takes the default for every question and skips the
+personal ones (signing key, secret values); it never accepts a command.
+--dry-run changes no file and runs no command. Standard library
 only; needs Python 3.9+.
 """
 
@@ -93,15 +94,28 @@ class Ui:
 
         `shown` replaces the displayed command line, e.g. to keep a secret out of it.
         """
-        line = shown or shlex.join(cmd)
-        print(f"  $ {line}")
+        print(f"  $ {shown or shlex.join(cmd)}")
+        if not self._accepted("run it?"):
+            return False
+        return self._run(cmd, stdin, interactive)
+
+    def commands(self, cmds: list[list[str]]) -> bool:
+        """Propose several commands as one step: all of them run, or none."""
+        for cmd in cmds:
+            print(f"  $ {shlex.join(cmd)}")
+        if not self._accepted(f"run these {len(cmds)} commands?"):
+            return False
+        return all(self._run(cmd, None, False) for cmd in cmds)
+
+    def _accepted(self, question: str) -> bool:
         if self.dry_run or self.cmd_mode == "print":
             return False
-        if self.cmd_mode == "ask":
-            answer = input("    run it? [y/N] ").strip().lower()
-            if not answer.startswith("y"):
-                print("    not run")
-                return False
+        if self.cmd_mode == "ask" and not input(f"    {question} [y/N] ").strip().lower().startswith("y"):
+            print("    not run")
+            return False
+        return True
+
+    def _run(self, cmd: list[str], stdin: str | None, interactive: bool) -> bool:
         if interactive:
             return subprocess.run(cmd, check=False).returncode == 0
         r = subprocess.run(cmd, check=False, text=True, capture_output=True, input=stdin)
@@ -161,6 +175,8 @@ def tracked_text_files() -> list[Path]:
         path = Path(name)
         # README-ADAPT.md documents the placeholders themselves
         if path.name in ("adapt.py", "README-ADAPT.md", "package-lock.json") or not path.is_file():
+            continue
+        if str(path) in TEMPLATE_FILES:  # generated results: --clean deletes them
             continue
         try:
             path.read_text(encoding="utf-8")
@@ -238,7 +254,7 @@ def step_version(ui: Ui) -> None:
         return
     print(f"  {'would set' if ui.dry_run else 'set'} version {version}")
     if not ui.dry_run:
-        path.write_text(json.dumps({".": version}) + "\n")
+        path.write_text(f'{{ ".": "{version}" }}\n')
 
 
 def step_contact(ui: Ui) -> None:
@@ -298,9 +314,9 @@ def step_signing(ui: Ui) -> None:
         if not pub.exists():
             print(f"  skipped: {pub} not found")
             return
-    for key, value in {"gpg.format": "ssh", "user.signingkey": str(pub),
-                       "commit.gpgsign": "true", "tag.gpgsign": "true"}.items():
-        ui.command(["git", "config", "--local", key, value])
+    ui.commands([["git", "config", "--local", key, value] for key, value in
+                 {"gpg.format": "ssh", "user.signingkey": str(pub),
+                  "commit.gpgsign": "true", "tag.gpgsign": "true"}.items()])
     print("  Commits also need a sign-off: use `git commit -s`.")
     print("  Register the key on GitHub as a *Signing Key* (Settings -> SSH and GPG keys), or with gh:")
     ui.command(["gh", "ssh-key", "add", str(pub), "--type", "signing", "--title", "commit signing"])
@@ -315,6 +331,9 @@ def require_gh(slug: str | None) -> str:
         sys.exit("gh is not authenticated: run `gh auth login` first.")
     if not slug:
         sys.exit("Could not read owner/repo from the origin remote.")
+    if run(["gh", "api", f"repos/{slug}", "--silent"], check=False).returncode != 0:
+        sys.exit(f"github.com/{slug} is not reachable with this gh login: create the "
+                 "repository and push first, or check `gh auth status`.")
     return slug
 
 
@@ -445,9 +464,9 @@ def main() -> int:
         epilog="""\
 examples:
   ./adapt.py                 walk through every local step
-  ./adapt.py --rename --yes  only rewrite owner/repo from origin, no prompts
+  ./adapt.py --rename --yes  only rewrite owner/repo from origin, no questions
   ./adapt.py --gh-vars       set Actions secrets and variables with gh
-  ./adapt.py --governance    apply the branch ruleset and repo settings
+  ./adapt.py --governance    propose applying the branch ruleset and repo settings
   ./adapt.py --workflow      check the result; exit status 1 on a failure
   ./adapt.py --signing --print-cmd   only print the git config commands
 
@@ -461,13 +480,17 @@ See README-ADAPT.md for what each step changes.""",
     steps.add_argument("--version", action="store_true", help="set the current version in .release-please-manifest.json")
     steps.add_argument("--contact", action="store_true", help="set the Code of Conduct contact")
     steps.add_argument("--sonar", action="store_true", help="set the SonarQube Cloud organisation and project keys")
-    steps.add_argument("--signing", action="store_true", help="configure SSH commit signing in this clone only")
-    github = parser.add_argument_group("GitHub (needs an authenticated gh with admin rights)")
-    github.add_argument("--gh-vars", action="store_true", help="prompt for each Actions secret and variable")
-    github.add_argument("--governance", action="store_true", help="run scripts/apply-governance.sh")
-    github.add_argument("--workflow", action="store_true", help="check the whole configuration; exit 1 on errors")
-    parser.add_argument("-y", "--yes", action="store_true", help="accept every default, never prompt")
-    parser.add_argument("-n", "--dry-run", action="store_true", help="print what would change, change nothing")
+    steps.add_argument("--signing", action="store_true",
+                       help="propose `git config --local` commands for SSH commit signing")
+    github = parser.add_argument_group("GitHub (needs an authenticated gh with admin rights, repo pushed)")
+    github.add_argument("--gh-vars", action="store_true", help="ask for each Actions secret and variable, propose `gh ... set`")
+    github.add_argument("--governance", action="store_true", help="propose scripts/apply-governance.sh")
+    github.add_argument("--workflow", action="store_true",
+                        help="check the whole configuration (read-only); exit 1 on a failure")
+    parser.add_argument("-y", "--yes", action="store_true",
+                        help="take the default for every question, skip signing and secret values; "
+                             "commands still need --accept-cmd")
+    parser.add_argument("-n", "--dry-run", action="store_true", help="show what would change; change no file, run no command")
     cmds = parser.add_mutually_exclusive_group()
     cmds.add_argument("--accept-cmd", action="store_true",
                       help="run every proposed command without asking (default: ask for each)")

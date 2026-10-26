@@ -26,8 +26,8 @@ too.
 | *(default)* | propose each command; run it only if you accept |
 | `--accept-cmd` | run every proposed command without asking |
 | `--print-cmd` | never run commands; print them for you to run yourself (secret values are never printed: `gh secret set` asks for them) |
-| `--yes` | accept every default *answer* (version, file edits); commands still follow the options above; signing is skipped |
-| `--dry-run` | change nothing, print what would change |
+| `--yes` | take the default for every question (version, file edits); skip the personal ones (signing key, secret values); commands still follow the options above |
+| `--dry-run` | change no file and run no command; print what would change |
 
 Read-only queries (`git remote`, `gh … list`, `gh api` reads) run on their
 own; `--workflow` only reads.
@@ -54,12 +54,12 @@ Run once, by whoever creates the repository. Each step also has its own flag.
 
 | Flag | Changes | If you skip it |
 | ---- | ------- | -------------- |
-| `--clean` | deletes `.readme-badges/*.json`, `.sast/openssf/SCORECARD.md`, `.sast/report/*` and `CHANGELOG.md`; the workflows regenerate them | the template's old results are shown |
+| `--clean` | deletes `.readme-badges/*.json`, `.sast/openssf/SCORECARD.md`, `.sast/report/*` and `CHANGELOG.md`; the workflows regenerate them. The README badge stays empty until the first Scorecard PR is merged (see *Check it works*). | the template's old results are shown |
 | `--rename` | replaces `Julian52575/Big-3-Governed-Template` and `OWNER/REPO` (README badge, security-advisory link, …) with the `owner/repo` of `origin`, and sets `"package-name"` in `release-please-config.json` | the badge and vulnerability reports point at the template |
 | `--version` | asks for the project's current version (default `0.0.0`) and writes `.release-please-manifest.json` | the first release is computed from `0.0.0` |
 | `--contact` | fills `[INSERT CONTACT METHOD]` in `CODE_OF_CONDUCT.md` | nobody to report conduct issues to |
 | `--sonar` | fills the SonarQube Cloud keys in `.sast/sonar-project.properties` (only with `SONARQUBE_TOKEN`) | the SonarQube job fails once the token is set |
-| `--signing` | see *Local setup* above | commits are rejected by the hook |
+| `--signing` | proposes the four `git config --local` signing commands as one step; see *Local setup* above | commits are rejected by the hook |
 
 Still by hand: the README's title, intro, *Customising* section and © line,
 and `"release-type"` in `release-please-config.json` (`simple` → e.g. `node`
@@ -67,7 +67,9 @@ so `package.json` versions are bumped).
 
 ## 3. GitHub: `./adapt.py --gh-vars --governance`
 
-Needs [`gh`](https://cli.github.com/) authenticated as a repo admin.
+Needs [`gh`](https://cli.github.com/) authenticated as a repo admin, and the
+repository created on GitHub and pushed; otherwise both flags stop with an
+error before asking anything.
 
 `--gh-vars` walks through each Actions secret and variable below, shows
 whether it is already set, and saves what you type (secrets are read without
