@@ -28,8 +28,17 @@ plan, and issues found along the way:
 - **T11:** macOS uses host Podman (Podman Desktop/Homebrew); `podman` itself is
   Linux-only in the flake. The Darwin branch is evaluated and syntax-checked
   but was not run on a Mac.
-- **T14:** both workflows are enabled with repository variables
-  (`MAKE_PR_DRAFT`, `DISCORD_NOTIFY`).
+- **T14:** `make-pr-draft.yml` is enabled with the `MAKE_PR_DRAFT` variable.
+
+Follow-up changes after review:
+
+- **T9 (ADR flow) and the Discord workflow were removed.**
+- **T6:** the signing check is on by default (opt out with
+  `git config hooks.requireSignature false`).
+- From ZTK: `PODMAN_COMPOSE_PROVIDER` and a `just` tool choice that always
+  use rootless Podman inside the nix shell; `Dev.Dockerfile` + bind-mounted
+  source for local compose, with 1s healthchecks.
+- `Adapt-Readme.md` lists everything to change after using the template.
 
 ## 0. Rules for the implementer
 

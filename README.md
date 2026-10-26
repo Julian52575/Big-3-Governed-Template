@@ -84,7 +84,9 @@ curl -s localhost:8080/api/http/routers | jq '.[].rule'   # discovered routes
 ## Use this template
 
 Click **“Use this template”** on GitHub (or `gh repo create <name> --template
-<this-repo>`), then:
+<this-repo>`), then follow **[Adapt-Readme.md](Adapt-Readme.md)** — the
+checklist of placeholders, secrets, variables and workflow settings to change.
+In short:
 
 ```bash
 cp .env.example .env          # adjust as needed
@@ -436,6 +438,7 @@ api/                      `backend` source; Dockerfile (release) + Dev.Dockerfil
   policy.json             image trust policy (symlinked into ~ by the shell)
   storage.conf            generated per-machine on shell entry (gitignored)
 .env.example              template for .env (created by the shell on first entry)
+Adapt-Readme.md           what to change after using the template
 CONTRIBUTING.md           governance chain, conventions, PR gate, releasing
 CODE_OF_CONDUCT.md        Contributor Covenant
 AGENTS.md / CLAUDE.md     rules for AI coding agents (CLAUDE.md points to AGENTS.md)
