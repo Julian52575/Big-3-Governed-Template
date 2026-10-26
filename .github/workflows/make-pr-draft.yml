@@ -1,0 +1,50 @@
+name: make-pr-draft
+
+# Opt-in (repo variable MAKE_PR_DRAFT=true): converts every new PR to a draft
+# and asks the author to mark it ready, so reviewers are only pinged and the
+# heavier checks (ci-sast skips drafts) only run once the work is done.
+
+on:
+  pull_request:
+    types: [opened, reopened]
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  convert-to-draft:
+    if: >-
+      vars.MAKE_PR_DRAFT == 'true'
+      && !github.event.pull_request.draft
+      && !startsWith(github.event.pull_request.head.ref, 'release-please-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
+
+      - name: Convert to draft
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            await github.graphql(
+              `mutation($id: ID!) {
+                convertPullRequestToDraft(input: { pullRequestId: $id }) {
+                  pullRequest { isDraft }
+                }
+              }`,
+              { id: pr.node_id },
+            );
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr.number,
+              body: 'This pull request was converted to a draft. Click "Ready for review" and pick reviewers when you are done.',
+            });

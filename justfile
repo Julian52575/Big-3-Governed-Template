@@ -96,3 +96,45 @@ lint-workflows:
     actionlint
     zizmor .github/
     check-jsonschema --builtin-schema vendor.github-workflows .github/workflows/*.yml
+
+#### Database (example)
+# Postgres backup/restore, for a compose service named `db` with POSTGRES_USER
+# and POSTGRES_DB in .env. Uncomment once you add one, and make `_pre-nuke`
+# run `just database-dump` so `nuke` never deletes data without a backup.
+
+# # Dump the whole database to db_backup_<timestamp>.sql
+# database-dump:
+#     #!/usr/bin/env bash
+#     set -euo pipefail
+#     source <(just _ensure-db)
+#     out="db_backup_$(date +%Y%m%d_%H%M%S).sql"
+#     {{tool}} exec "$cid" pg_dumpall -U "${POSTGRES_USER}" > "$out"
+#     echo "Dumped database into $out"
+#
+# # Pipe a .sql file into the database: `just database-pipe db_backup_x.sql`
+# database-pipe file:
+#     #!/usr/bin/env bash
+#     set -euo pipefail
+#     [[ -f "{{file}}" ]] || { echo "{{file}} not found" >&2; exit 1; }
+#     source <(just _ensure-db)
+#     {{tool}} exec -i "$cid" psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" < "{{file}}"
+#     echo "Piped {{file}} into the database"
+#
+# # (internal) start `db` if it is down, wait for it, and print `cid=<id>`.
+# # A db started here is stopped again when the calling recipe exits.
+# _ensure-db:
+#     #!/usr/bin/env bash
+#     set -euo pipefail
+#     cid="$(just _cid db)"
+#     if [[ -z "$cid" ]]; then
+#         echo "db is down -- starting it" >&2
+#         {{compose}} up -d db >&2
+#         for _ in $(seq 1 30); do
+#             cid="$(just _cid db)"
+#             [[ -n "$cid" ]] && {{tool}} exec "$cid" pg_isready -U "${POSTGRES_USER}" >/dev/null 2>&1 && break
+#             sleep 1
+#         done
+#         echo "trap '{{tool}} stop $cid >/dev/null || true' EXIT"
+#     fi
+#     [[ -n "$cid" ]] || { echo "could not find the db container" >&2; exit 1; }
+#     echo "cid=$cid"

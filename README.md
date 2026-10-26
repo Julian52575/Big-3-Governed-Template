@@ -177,7 +177,9 @@ Entering the shell (`nix develop` / direnv):
 | `just exec <svc> <cmd…>` | run a command in a running service container |
 | `just sh <svc>` | interactive shell in a running service container |
 | `just attach <svc>` | attach this terminal to a service's live stdio (detach: Ctrl-C or ctrl-p ctrl-q) |
-| `just nuke` | stop stack + delete its volumes and local images (asks first) |
+| `just nuke` | stop stack + delete its volumes and local images (asks first; runs `_pre-nuke` first) |
+| `just lint-workflows` | actionlint + zizmor + schema check on `.github/`, as CI does |
+| `just database-dump` / `database-pipe <file>` | Postgres backup/restore example — commented out in the justfile until you add a `db` service |
 
 > `just up` runs `compose up` in the foreground. With `podman-compose`,
 > stopping an attached `up` with Ctrl-C can leave a runaway `podman start -a`
@@ -387,6 +389,16 @@ repo made from this template must point the badge URL at its own `owner/repo`.
 by default — add `ci-sast-required` to the ruleset to make it one. Setup and
 customisation: [`.sast/README.md`](.sast/README.md).
 
+### Optional automation
+
+Shipped switched off; turn each on with a repository variable
+(*Settings → Secrets and variables → Actions → Variables*):
+
+| Workflow | Enable with | Does |
+| -------- | ----------- | ---- |
+| `make-pr-draft.yml` | `MAKE_PR_DRAFT=true` | converts new PRs (except release-please's) to drafts and asks the author to mark them ready |
+| `notify-discord-review-requested.yml` | `DISCORD_NOTIFY=true` + secret `DISCORD_WEBHOOK_URL` | posts review requests to Discord, which its GitHub webhook ignores |
+
 ## Releasing
 
 Releases are automated from Conventional Commit history:
@@ -430,7 +442,7 @@ docs/Troubleshoot.md      incident log: error, cause, solution
 .githooks/check-conventional-commit-msg   local Conventional Commits check (enabled by the shellHook)
 .githooks/check-signature  opt-in sign-off + signing check (`git config hooks.requireSignature true`)
 .github/actions/setup-devshell/   composite action: checkout-then-install-Nix, shared by workflows
-.github/workflows/ci.yml       flake eval + compose lint; `ci-required` aggregator gate
+.github/workflows/ci.yml       flake eval, Dockerfile/compose/workflow lint, zizmor, dependency audit, stack boot; `ci-required` gate
 .github/workflows/check-conventional-commit-pr-title.yml  PR title must be a Conventional Commit
 .github/workflows/check-pr-linked-issue.yml  every PR must close at least one issue
 .github/workflows/openssf-scorecard.yml  weekly OpenSSF Scorecard audit -> `openssf-update` branch + issue
@@ -444,6 +456,9 @@ release-please-config.json     release-please settings (release type, changelog 
 docs/adr/                      accepted Architecture Decision Records
 .github/workflows/ci-sast.yml  CodeQL + opt-in SonarQube; `ci-sast-required`
 .sast/                         SAST config, report scripts, committed reports
+.github/workflows/make-pr-draft.yml  opt-in: new PRs start as drafts
+.github/workflows/notify-discord-review-requested.yml  opt-in: review requests to Discord
+nix/tools.nix                  CLIs pinned to upstream releases (zizmor, pin-github-action)
 .github/rulesets/main.json     default-branch ruleset, in GitHub export format
 scripts/apply-governance.sh    apply the ruleset + merge/security settings via `gh`
 ```
