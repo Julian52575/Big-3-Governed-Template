@@ -10,6 +10,13 @@ the dev shell. Without a host `python3`, run it as
 [`gh`](https://cli.github.com/) authenticated as a repo admin; without it they
 are skipped and the rest still runs.
 
+**Prefer to be walked through it?** A local AI coding agent (Claude Code,
+Codex, Copilot, …) opened in this repository can guide you: ask it to *"follow
+README-ADAPT.md to set up this repository"*. `AGENTS.md` tells it to do so;
+it explains each step, runs `adapt.py` with you, and shows every command
+before running it. Secret values are still yours to type into `adapt.py` —
+never paste them into the agent's chat.
+
 ## Pick how much it asks
 
 | You are… | Run | It asks | Commands |
