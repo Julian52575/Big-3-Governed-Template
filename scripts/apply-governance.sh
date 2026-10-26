@@ -94,7 +94,4 @@ CATTOOL=$(command -v lolcat >/dev/null 2>&1 && echo lolcat || echo cat)
 echo
 echo "==> Done. Review at: https://github.com/$repo/settings/rules" | $CATTOOL
 echo
-echo "    Manual follow-up:" | $CATTOOL
-echo "    edit .github/ISSUE_TEMPLATE/config.yml and replace"
-echo "    OWNER/REPO in the contact_links URLs with this repository (and add the"
-echo "    Discussions link if you enable Discussions)."
+echo "    Next: ./adapt.py --gh-vars to set secrets, ./adapt.py --workflow to check." | $CATTOOL

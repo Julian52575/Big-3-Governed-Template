@@ -1,8 +1,23 @@
 # Adapting this template
 
 Everything to do after **Use this template** so the dev shell, CI, releases
-and governance work in your repository. Work top to bottom; each step says
-what breaks if you skip it. Steps marked *(optional)* switch on extra features.
+and governance work in your repository. **`adapt.py`** does most of it; this
+page says what each step changes, and what is left to do by hand.
+
+`adapt.py` uses only the Python standard library (3.9+) and is not part of
+the dev shell. Without a host `python3`, run it as
+`nix shell nixpkgs#python3 -c ./adapt.py`.
+
+```bash
+./adapt.py --help                      # every flag, with examples
+./adapt.py                             # 1. local steps, each one asks first
+git commit -sam "chore: adapt the template" && git push
+./adapt.py --gh-vars --governance      # 2. GitHub secrets and settings (gh)
+./adapt.py --workflow                  # 3. check everything; exit 1 on a failure
+```
+
+Add `--dry-run` to see what would change, or `--yes` to accept every default
+without prompting (the signing step is skipped with `--yes`).
 
 ## 1. Local setup (every contributor)
 
@@ -12,41 +27,55 @@ what breaks if you skip it. Steps marked *(optional)* switch on extra features.
    (`podman machine init && podman machine start`).
 2. `nix develop` (or `direnv allow`). This creates `.env`, generates every
    `change-me-*` secret, and enables the git hooks.
-3. Set up **commit signing**. The `commit-msg` hook rejects unsigned or
-   un-signed-off commits:
-   ```bash
-   git config --global gpg.format ssh
-   git config --global user.signingkey ~/.ssh/id_ed25519.pub
-   git config --global commit.gpgsign true
-   ```
-   Add the key on GitHub as a **Signing Key**, and commit with `git commit -s`.
-   If your project does not want signing, run
+3. `./adapt.py --signing` sets up SSH **commit signing** for this clone only
+   (`git config --local`): pick an existing key or generate one, and
+   optionally register it on GitHub as a *Signing Key* through `gh`. The
+   `commit-msg` hook rejects unsigned or un-signed-off commits, so also commit
+   with `git commit -s`. A project that does not want signing runs
    `git config hooks.requireSignature false` in each clone.
 4. `just up -d` and open <http://localhost:8000>.
 
-## 2. Replace placeholders
+## 2. Local steps: `./adapt.py`
 
-| File | Replace | If you skip it |
+Run once, by whoever creates the repository. Each step also has its own flag.
+
+| Flag | Changes | If you skip it |
 | ---- | ------- | -------------- |
-| `README.md` (top) | `Julian52575/Big-3-Governed-Template` in the badge URL; the title, intro, *Customising* section and © line | badge shows the template's score |
-| `.github/ISSUE_TEMPLATE/config.yml` | `OWNER/REPO` in the security-advisory link | vulnerability reports go to the wrong repo |
-| `CODE_OF_CONDUCT.md` | `[INSERT CONTACT METHOD]` | nobody to report conduct issues to |
-| `release-please-config.json` | `"package-name": "REPO"`; `"release-type": "simple"` → e.g. `node` per package so `package.json` versions are bumped | releases work, but no package version file is updated |
-| `.release-please-manifest.json` | your current version, if not `0.0.0` | the first release is computed from `0.0.0` |
-| `.readme-badges/`, `.sast/openssf/SCORECARD.md` | delete; the Scorecard workflow regenerates them | the template's old results are shown |
+| `--clean` | deletes `.readme-badges/*.json`, `.sast/openssf/SCORECARD.md`, `.sast/report/*` and `CHANGELOG.md`; the workflows regenerate them | the template's old results are shown |
+| `--rename` | replaces `Julian52575/Big-3-Governed-Template` and `OWNER/REPO` (README badge, security-advisory link, …) with the `owner/repo` of `origin`, and sets `"package-name"` in `release-please-config.json` | the badge and vulnerability reports point at the template |
+| `--version` | asks for the project's current version (default `0.0.0`) and writes `.release-please-manifest.json` | the first release is computed from `0.0.0` |
+| `--contact` | fills `[INSERT CONTACT METHOD]` in `CODE_OF_CONDUCT.md` | nobody to report conduct issues to |
+| `--sonar` | fills the SonarQube Cloud keys in `.sast/sonar-project.properties` (only with `SONARQUBE_TOKEN`) | the SonarQube job fails once the token is set |
+| `--signing` | see *Local setup* above | commits are rejected by the hook |
 
-## 3. Repository settings
+Still by hand: the README's title, intro, *Customising* section and © line,
+and `"release-type"` in `release-please-config.json` (`simple` → e.g. `node`
+so `package.json` versions are bumped).
 
-With [`gh`](https://cli.github.com/) authenticated as a repo admin:
+## 3. GitHub: `./adapt.py --gh-vars --governance`
 
-```bash
-scripts/apply-governance.sh owner/name
-```
+Needs [`gh`](https://cli.github.com/) authenticated as a repo admin.
 
-It sets the branch ruleset (from `.github/rulesets/main.json`), squash-only
-merges, read-only default `GITHUB_TOKEN`, Dependabot, secret scanning and
-private vulnerability reporting, and creates the issue labels. Without it,
-`main` is unprotected and none of the required checks block a merge.
+`--gh-vars` walks through each Actions secret and variable below, shows
+whether it is already set, and saves what you type (secrets are read without
+echo and passed to `gh` on stdin). Blank input leaves a value as it is.
+
+| Name | Kind | Needed for | Scope | If unset |
+| ---- | ---- | ---------- | ----- | -------- |
+| `RELEASE_PLEASE_GITHUB_TOKEN` | secret, **required** | `release-please.yml` | fine-grained PAT or GitHub App token on this repo: *Contents* and *Pull requests* read/write | release-please fails; with the built-in token instead, releases would not trigger `release-to-ghcr.yml` |
+| `SONARQUBE_TOKEN` | secret | `ci-sast.yml` SonarQube job | SonarQube Cloud analysis token | SonarQube is skipped; CodeQL still runs |
+| `SAST_REPORT_TOKEN` | secret | `ci-sast.yml` report commits on `main` | fine-grained PAT: *Contents* read/write; needs a ruleset bypass if `main` is protected | reports stay in the run summary only |
+| `DISCORD_WEBHOOK_URL` | secret | `notify-discord-review-requested.yml` | a Discord channel webhook URL (*Channel settings → Integrations → Webhooks*, [docs](https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks)) | no Discord notification; the job runs and skips its steps |
+| `MAKE_PR_DRAFT` | variable | `make-pr-draft.yml` | `true` | new PRs are not turned into drafts |
+
+`GITHUB_TOKEN` is provided by Actions; image pushes to GHCR and the Scorecard
+workflow use it.
+
+`--governance` runs `scripts/apply-governance.sh`: the branch ruleset from
+`.github/rulesets/main.json`, squash-only merges, read-only default
+`GITHUB_TOKEN`, Dependabot, secret scanning, private vulnerability reporting
+and the issue labels. Without it, `main` is unprotected and `ci-required`
+does not block a merge.
 
 Then, by hand:
 
@@ -55,35 +84,22 @@ Then, by hand:
 - **CODEOWNERS** *(optional)*: add `.github/CODEOWNERS`; the ruleset already
   requires code-owner review once it exists.
 - **Signed commits on GitHub** *(optional)*: add `{ "type": "required_signatures" }`
-  to `rules` in `.github/rulesets/main.json` and re-run the script. Leave
+  to `rules` in `.github/rulesets/main.json` and re-run `--governance`. Leave
   `SAST_REPORT_TOKEN` unset (or give its account a bypass) — its report
   commits are not signed.
 - **SAST as a merge gate** *(optional)*: add `{ "context": "ci-sast-required" }`
-  to `required_status_checks` in the same file and re-run the script.
+  to `required_status_checks` in the same file and re-run `--governance`.
 
-## 4. Secrets
+## 4. Check: `./adapt.py --workflow`
 
-*Settings → Secrets and variables → Actions → Secrets.*
+Reports `ok`, `warn` or `FAIL` for: the `origin` remote, leftover template
+references and results, the manifest version, the Code of Conduct contact,
+commit signing and git hooks, every secret and variable above, the SonarQube
+keys (when its token is set), the `ci-required` ruleset, the read-only
+`GITHUB_TOKEN` default and squash-only merges. Exits 1 if anything fails, so
+it can also run in a script.
 
-| Secret | Needed for | Scope | If unset |
-| ------ | ---------- | ----- | -------- |
-| `RELEASE_PLEASE_GITHUB_TOKEN` | `release-please.yml` | fine-grained PAT or GitHub App token on this repo: *Contents* and *Pull requests* read/write | release-please fails; with the built-in token instead, releases would not trigger `release-to-ghcr.yml` |
-| `SONARQUBE_TOKEN` *(optional)* | `ci-sast.yml` SonarQube job | SonarQube Cloud analysis token | SonarQube is skipped; CodeQL still runs |
-| `DISCORD_WEBHOOK_URL` *(optional)* | `notify-discord-review-requested.yml` | a Discord channel webhook URL (*Channel settings → Integrations → Webhooks*, [docs](https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks)) | no Discord notification; the job runs and skips its steps |
-| `SAST_REPORT_TOKEN` *(optional)* | `ci-sast.yml` report commits on `main` | fine-grained PAT: *Contents* read/write; needs a ruleset bypass if `main` is protected | reports stay in the run summary only |
-
-`GITHUB_TOKEN` is provided by Actions; image pushes to GHCR and the Scorecard
-workflow use it.
-
-## 5. Variables
-
-*Settings → Secrets and variables → Actions → Variables.*
-
-| Variable | Effect |
-| -------- | ------ |
-| `MAKE_PR_DRAFT=true` *(optional)* | `make-pr-draft.yml` turns every new PR into a draft and asks the author to mark it ready |
-
-## 6. Workflow configuration
+## 5. Workflow configuration
 
 Edit the lines marked `CUSTOMISE`:
 
@@ -106,7 +122,7 @@ Keep `ci-required`'s `needs:` list in `ci.yml` in step with your jobs: a job
 is only mandatory once it is listed there. When you add a workflow, follow the
 rules in `AGENTS.md` and run `just lint-workflows`.
 
-## 7. Your application
+## 6. Your application
 
 - Build on the `frontend/` and `backend/` placeholders, or replace them. Give each a `Dockerfile`
   (release image, code copied in) and a `Dev.Dockerfile` (dependencies only;
@@ -124,13 +140,13 @@ rules in `AGENTS.md` and run `just lint-workflows`.
   `backend/prisma/schema.prisma`. Without a database, drop `db`, Prisma and
   the `database-*` recipes, and set `_pre-nuke` back to `@true`.
 
-## 8. Check it works
+## 7. Check it works
 
 1. Open a PR. `ci-required` must go green and blocks the merge until it does.
 2. Merge it. release-please opens a Release PR; merging that creates a tag,
    and `release-to-ghcr.yml` pushes signed images. Verify one (cosign v3+):
    ```bash
-   cosign verify ghcr.io/<owner>/<repo>-api:<tag> \
+   cosign verify ghcr.io/<owner>/<repo>-backend:<tag> \
      --certificate-identity-regexp 'https://github.com/<owner>/<repo>/' \
      --certificate-oidc-issuer https://token.actions.githubusercontent.com
    ```

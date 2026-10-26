@@ -1,4 +1,4 @@
-<!-- swap `Julian52575/Big-3-Governed-Template` in the badge URL for your own owner/repo. -->
+<!-- `./adapt.py --rename` points the badge at your repository. -->
 [![OpenSSF Scorecard](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FJulian52575%2FBig-3-Governed-Template%2Fmain%2F.readme-badges%2Fscorecard-badge.json)](.readme-badges/scorecard-results.json)
 
 # Nix + Just + Rootless Podman — The Big 3, governed
@@ -24,8 +24,8 @@ just               # list every command
 | — | `db` — PostgreSQL 18, used by the backend through Prisma |
 | <http://localhost:8080/> | Traefik dashboard (local only) |
 
-Making your own repo from it? Click **Use this template**, then work through
-**[README-ADAPT.md](README-ADAPT.md)**.
+Making your own repo from it? Click **Use this template**, then run
+`./adapt.py` and follow **[README-ADAPT.md](README-ADAPT.md)**.
 
 ## The stack
 
@@ -157,7 +157,8 @@ backend/                               Express + Prisma placeholder (Jest, super
 scripts/apply-governance.sh            applies the repository settings
 release-please-config.json, .release-please-manifest.json
 docs/Troubleshoot.md                   incident log
-README-ADAPT.md, CONTRIBUTING.md, AGENTS.md
+adapt.py, README-ADAPT.md              guided adaptation of a new repository
+CONTRIBUTING.md, AGENTS.md
 ```
 
 ## Customising
