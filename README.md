@@ -144,21 +144,25 @@ Entering the shell (`nix develop` / direnv):
 
 1. Creates `.env` from `.env.example` if missing, replaces every
    `change-me-*` placeholder value with a random secret (once), then loads it.
-2. Points Podman at the in-repo config (`.config/podman/`) via
+2. Forces every container command onto rootless Podman: `just` always uses
+   `podman` inside the shell (outside it falls back to Docker), and
+   `PODMAN_COMPOSE_PROVIDER` makes `podman compose` run the pinned
+   `podman-compose`, never a host `docker-compose`.
+3. Points Podman at the in-repo config (`.config/podman/`) via
    `CONTAINERS_CONF` / `CONTAINERS_STORAGE_CONF` / `CONTAINERS_REGISTRIES_CONF`,
    and symlinks `policy.json` into `~/.config/containers/` only if nothing is
    there yet. Nothing under `/etc` is touched.
-3. Picks a container storage root. Default is `./.containers/`. If the repo
+4. Picks a container storage root. Default is `./.containers/`. If the repo
    sits on a network/virtualised filesystem (WSL2 `drvfs`, NFS, CIFS, sshfs)
    — where Podman's overlay driver hits obscure mount errors — it falls back
    to `~/.cache/podman-storage/<project>/`. Override with `PODMAN_STORAGE_DIR`.
-4. Starts a rootless Docker-API socket and exports `DOCKER_HOST` (and
+5. Starts a rootless Docker-API socket and exports `DOCKER_HOST` (and
    `DOCKER_SOCK`, the bare path, which `docker-compose.yml` bind-mounts into
    Traefik), so `docker compose`, testcontainers, lazydocker, etc. work. It reuses a
    running socket or a `systemd --user podman.socket` if available, otherwise
    spawns a detached `podman system service` that is killed when the shell
    exits. Set `PODMAN_NO_SOCKET=1` to skip this (CI/headless).
-5. Points `git` at `.githooks/`, enabling the `commit-msg` hook (which execs
+6. Points `git` at `.githooks/`, enabling the `commit-msg` hook (which execs
    `.githooks/check-conventional-commit-msg`) that checks each message is a
    [Conventional Commit](https://www.conventionalcommits.org/)
    (`<type>[(scope)][!]: description`, subject lower-case, no trailing

@@ -3,8 +3,9 @@ set shell := ["bash", "-eu", "-c"]
 # Recipes also get their arguments as "$@", so quoted arguments stay intact.
 set positional-arguments := true
 
-# podman if present, else docker -- every recipe goes through this
-tool := `command -v podman >/dev/null && echo podman || echo docker`
+# Every recipe goes through this. Inside the nix shell (IN_NIX_SHELL, also set
+# by direnv) it is always rootless podman; outside, podman if present, else docker.
+tool := if env("IN_NIX_SHELL", "") != "" { "podman" } else { `command -v podman >/dev/null && echo podman || echo docker` }
 compose := tool + " compose"
 # compose derives the project name from the directory name
 project := lowercase(file_name(justfile_directory()))

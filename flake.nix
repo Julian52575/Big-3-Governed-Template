@@ -57,6 +57,13 @@
               set +a
             fi
 
+            # --- container tooling ---------------------------------------
+            # Inside this shell everything goes through rootless Podman:
+            # `podman compose` must delegate to the pinned podman-compose,
+            # never to a host docker-compose it might find first.
+            export PODMAN_COMPOSE_PROVIDER="$(command -v podman-compose)"
+            export PODMAN_COMPOSE_WARNING_LOGS=false
+
             if [ "$(uname -s)" = "Darwin" ]; then
               # --- macOS: host Podman inside `podman machine` ---------------
               # Nothing to configure locally; only expose the machine's API
