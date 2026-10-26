@@ -1,6 +1,6 @@
 # zizmor, official release binary. Bump: version, then the four hashes
 # (`nix store prefetch-file <url>`). Keep in sync with the `zizmor` job in ci.yml.
-{ pkgs }:
+{ pkgs, ... }:
 let
   inherit (pkgs) lib stdenv;
   system = stdenv.hostPlatform.system;

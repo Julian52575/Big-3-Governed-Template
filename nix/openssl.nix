@@ -1,13 +1,9 @@
-# openssl: upstream publishes source only, so this rebuilds nixpkgs' openssl
-# from the pinned release. Only the CLI is used (`openssl rand` in the
-# shellHook); nothing else links against it. Bump: version, then `hash`.
-{ pkgs }:
-pkgs.openssl.overrideAttrs (old: rec {
-  version = "4.1.0";
-  src = pkgs.fetchurl {
-    url = "https://github.com/openssl/openssl/releases/download/openssl-${version}/openssl-${version}.tar.gz";
-    hash = "sha256-UMF7r1TLAI9s5C1Q3rSygFChqtcRY2yr1LJBx+kMwv0=";
-  };
-  # nixpkgs' patches target its own 3.x release
-  patches = [ ];
-})
+# openssl: upstream publishes source only, no binary. The newest prebuilt
+# build is nixpkgs-unstable's, downloaded from cache.nixos.org, never compiled
+# here. The version is asserted so a `nix flake update` that moves it fails
+# loudly. Bump: `nix flake update nixpkgs-unstable`, then the version below.
+{ pkgs, unstable, ... }:
+let version = "3.5.9"; in
+# Intel Macs (no nixpkgs-unstable): the stable channel's older prebuilt build.
+if unstable == null then pkgs.openssl
+else assert unstable.openssl.version == version; unstable.openssl

@@ -1,6 +1,6 @@
 # actionlint, official static release binary. Bump: version, then the four
 # hashes (`nix store prefetch-file <url>`). It runs shellcheck on `run:` scripts.
-{ pkgs }:
+{ pkgs, ... }:
 let
   system = pkgs.stdenv.hostPlatform.system;
   target = {

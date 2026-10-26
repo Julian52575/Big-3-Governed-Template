@@ -1,6 +1,6 @@
 # just, official static release binary. Bump: version, then the four hashes
 # (`nix store prefetch-file <url>`).
-{ pkgs }:
+{ pkgs, ... }:
 let
   system = pkgs.stdenv.hostPlatform.system;
   target = {

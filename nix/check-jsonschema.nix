@@ -1,34 +1,31 @@
-# check-jsonschema (validates workflows against GitHub's schema): a Python
-# package with no binary release, so this rebuilds nixpkgs' package from the
-# pinned tag. Bump: version, then `hash` (a build with a wrong hash prints it).
-{ pkgs }:
+# check-jsonschema (validates workflows against GitHub's schema), from its
+# official PyPI wheels: a wheel is unpacked, not compiled. Its other
+# dependencies come prebuilt from nixpkgs. Bump: the versions, then the
+# hashes (`nix store prefetch-file <wheel url>`).
+{ pkgs, ... }:
 let
-  # It needs a newer click than nixpkgs ships; overridden for this tool only.
-  python = pkgs.python3.override {
-    packageOverrides = self: super: {
-      click = super.click.overridePythonAttrs (old: rec {
-        version = "8.5.0";
-        src = pkgs.fetchFromGitHub {
-          owner = "pallets";
-          repo = "click";
-          tag = version;
-          hash = "sha256-VYdaEN9l2MRVz42I8t8IDOpG5XeDM8bf34dLZy3yf10=";
-        };
-        # its pager tests need a real terminal, which the build sandbox lacks
-        disabledTestPaths = (old.disabledTestPaths or [ ]) ++ [ "tests/test_utils/test_echo_via_pager.py" ];
-      });
+  py = pkgs.python3Packages;
+  wheel = pname: version: hash: py.buildPythonPackage {
+    inherit pname version;
+    format = "wheel";
+    src = pkgs.fetchurl {
+      url = "https://files.pythonhosted.org/packages/py3/${builtins.substring 0 1 pname}/${pname}/${pname}-${version}-py3-none-any.whl";
+      inherit hash;
     };
   };
+  # nixpkgs' click is older than the >=8.5 check-jsonschema needs
+  click = wheel "click" "8.5.0" "sha256-JVvJWZz3dItLGkRszHNUIb0Ioq5SmouIWX095WZO42A=";
 in
-(pkgs.check-jsonschema.override { python3Packages = python.pkgs; }).overridePythonAttrs (old: rec {
+py.buildPythonApplication {
+  pname = "check-jsonschema";
   version = "0.38.2";
-  src = pkgs.fetchFromGitHub {
-    owner = "python-jsonschema";
-    repo = "check-jsonschema";
-    tag = version;
-    hash = "sha256-78HaLqcsL9VK+e7+9lB2WbGKG/d+vNg0bJOAxRfUlPE=";
+  format = "wheel";
+  src = pkgs.fetchurl {
+    url = "https://files.pythonhosted.org/packages/py3/c/check_jsonschema/check_jsonschema-0.38.2-py3-none-any.whl";
+    hash = "sha256-jt7+FUtxF5YvLogxjzFfxLuWFYJ/kys3y2dqjUKjooY=";
   };
+  dependencies = [ click py.jsonschema py.regress py.requests py.ruamel-yaml ];
   # The dev shell's PYTHONPATH carries nixpkgs' older click (via podman-compose);
   # keep this tool on its own dependencies.
-  makeWrapperArgs = (old.makeWrapperArgs or [ ]) ++ [ "--unset" "PYTHONPATH" ];
-})
+  makeWrapperArgs = [ "--unset" "PYTHONPATH" ];
+}

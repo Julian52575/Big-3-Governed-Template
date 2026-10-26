@@ -236,12 +236,13 @@ CONTRIBUTING.md, AGENTS.md
 
 ## Customising
 
-- **Tools:** every dev-shell tool except the Podman stack is pinned to its
-  latest upstream release in its own `nix/<tool>.nix` (official binaries
-  where they exist, else nixpkgs rebuilt from the release source) and listed
-  in `nix/tools.nix`; each file says how to bump it. Add a tool the same way.
-  The Podman stack follows nixpkgs: bump it by editing `nixpkgs.url`, then
-  `nix flake update`.
+- **Tools:** every dev-shell tool except the Podman stack is pinned in its
+  own `nix/<tool>.nix` (listed in `nix/tools.nix`) to its latest **prebuilt**
+  release, so `nix develop` only downloads: official binaries where upstream
+  publishes them, PyPI wheels for Python tools, else the newest
+  `cache.nixos.org` build from nixpkgs-unstable (openssl, curl). Each file
+  says how to bump it. The Podman stack follows nixpkgs: bump it by editing
+  `nixpkgs.url`, then `nix flake update`.
 - **Services:** `frontend` and `backend` are placeholders; build on them or
   replace them. Each has a release `Dockerfile` and a `Dev.Dockerfile` whose
   source is bind-mounted, with `node_modules` in a named volume

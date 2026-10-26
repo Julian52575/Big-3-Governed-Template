@@ -1,10 +1,10 @@
-# Dev-shell CLIs pinned to exact upstream releases, one file per tool,
-# independent of the nixpkgs channel. The Podman stack stays on nixpkgs
-# (see flake.nix). Each file says how to bump it.
-{ pkgs }:
+# Dev-shell CLIs, one file per tool, each pinned to its latest release as a
+# prebuilt binary: nothing here compiles on `nix develop`. The Podman stack
+# stays on nixpkgs (see flake.nix). Each file says how to bump it.
+{ pkgs, unstable }:
 # Only each tool's binaries: a `dev` output (curl's) would also put nixpkgs'
 # own openssl on PATH.
-map (file: pkgs.lib.getBin (import file { inherit pkgs; })) [
+map (file: pkgs.lib.getBin (import file { inherit pkgs unstable; })) [
   ./actionlint.nix
   ./check-jsonschema.nix
   ./curl.nix
