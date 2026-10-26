@@ -24,7 +24,59 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # On a PR, decides which jobs have code to check. Other events run everything.
+  # Uses the API rather than a checkout, so no history fetch or third-party action.
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      devshell: ${{ steps.filter.outputs.devshell }}
+      dockerfile: ${{ steps.filter.outputs.dockerfile }}
+      compose: ${{ steps.filter.outputs.compose }}
+      workflow: ${{ steps.filter.outputs.workflow }}
+      dependencies: ${{ steps.filter.outputs.dependencies }}
+      node: ${{ steps.filter.outputs.node }}
+      stack: ${{ steps.filter.outputs.stack }}
+    steps:
+      - name: Match the changed files against each job's paths
+        id: filter
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          # A change to this workflow re-runs everything.
+          self='^\.github/workflows/ci\.yml$'
+          declare -A re=(
+            [devshell]="$self|^(flake\.(nix|lock)|shell\.nix|justfile|docker-compose\.yml)$|^nix/|^\.github/actions/"
+            [dockerfile]="$self|(^|/)(Dockerfile|Containerfile)(\.|$)|^\.hadolint\.ya?ml$"
+            [compose]="$self|^docker-compose\.yml$|^\.env\.example$"
+            [workflow]="$self|^\.github/"
+            [dependencies]="$self|(lock|\.lock)(\.json|\.yaml)?$|(^|/)(package\.json|go\.mod|go\.sum|requirements.*\.txt|Cargo\.toml|pom\.xml)$"
+            [node]="$self|^(backend|frontend)/"
+            [stack]="$self|^\.env\.example$|^(backend|frontend|nix)/|^docker-compose\.yml$|(^|/)(Dockerfile|Containerfile)"
+          )
+          if [ "$EVENT" = pull_request ]; then
+            files=$(gh api --paginate "repos/$REPO/pulls/$PR/files" --jq '.[] | .filename, (.previous_filename // empty)')
+          fi
+          # Documents never need a job.
+          files=$(printf '%s\n' "${files:-}" | grep -vE '\.(md|mdx|rst)$' || true)
+          for k in "${!re[@]}"; do
+            if [ "$EVENT" != pull_request ] || printf '%s\n' "$files" | grep -qE "${re[$k]}"; then
+              echo "$k=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "$k=false" >> "$GITHUB_OUTPUT"
+            fi
+          done
+
   devshell:
+    needs: changes
+    if: needs.changes.outputs.devshell == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -60,6 +112,8 @@ jobs:
   # picked up without touching this workflow. Mounts the repo so hadolint
   # reads a root .hadolint.yaml if one exists.
   dockerfile-lint:
+    needs: changes
+    if: needs.changes.outputs.dockerfile == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -98,6 +152,8 @@ jobs:
 
   # The compose file parses and interpolates cleanly with the example .env.
   compose-lint:
+    needs: changes
+    if: needs.changes.outputs.compose == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -118,6 +174,8 @@ jobs:
   # Every workflow under .github/workflows, including a shellcheck pass on each
   # `run:` script (bundled in the actionlint image).
   workflow-lint:
+    needs: changes
+    if: needs.changes.outputs.workflow == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -138,6 +196,8 @@ jobs:
   # Security audit of every workflow and action; findings show as PR annotations.
   # Keep the version in sync with nix/zizmor.nix.
   zizmor:
+    needs: changes
+    if: needs.changes.outputs.workflow == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -164,6 +224,8 @@ jobs:
   # count as Moderate. Counts and advisories land in the job summary and the
   # raw report uploads as an artifact, pass or fail.
   dependencies-audit:
+    needs: changes
+    if: needs.changes.outputs.dependencies == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -247,6 +309,8 @@ jobs:
 
   # Lint, test and build each Node.js service in its own folder.
   node:
+    needs: changes
+    if: needs.changes.outputs.node == 'true'
     name: node (${{ matrix.service }})
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -286,6 +350,8 @@ jobs:
   # every route through the proxy. CUSTOMISE the checks when you replace the
   # example services.
   stack:
+    needs: changes
+    if: needs.changes.outputs.stack == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -358,6 +424,7 @@ jobs:
   ci-required:
     if: always()
     needs:
+      - changes
       - devshell
       - dockerfile-lint
       - compose-lint
@@ -373,12 +440,12 @@ jobs:
         with:
           egress-policy: audit
 
-      - name: Every required job passed
+      - name: No required job failed
         env:
           RESULTS: ${{ join(needs.*.result, ' ') }}
         run: |
-          # Anything but `success` (failure, cancelled, skipped) fails the gate.
-          if printf '%s\n' "$RESULTS" | tr ' ' '\n' | grep -vqx 'success'; then
+          # A skipped job (no relevant change) is fine; failure or cancelled is not.
+          if printf '%s\n' "$RESULTS" | tr ' ' '\n' | grep -vqxE 'success|skipped'; then
             echo "a required job did not succeed: $RESULTS"
             exit 1
           fi
