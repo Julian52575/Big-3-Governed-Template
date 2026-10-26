@@ -424,8 +424,8 @@ flake.nix                 dev shell: tool pins + Podman bootstrap shellHook
 .envrc                    direnv: `use flake`
 justfile                  container-lifecycle commands
 docker-compose.yml        the stack: Traefik proxy + example web + backend
-web/                      `web` image source (nginx + static index.html)
-api/                      `backend` image source (python:slim + stdlib app.py)
+web/                      `web` source; Dockerfile (release) + Dev.Dockerfile (bind-mounted, local)
+api/                      `backend` source; Dockerfile (release) + Dev.Dockerfile (watchfiles auto-restart)
 .config/podman/
   containers.conf         runtime = crun, default transport
   registries.conf         unqualified image lookups -> docker.io
@@ -467,9 +467,17 @@ scripts/apply-governance.sh    apply the ruleset + merge/security settings via `
   put it behind the proxy, or a `ports:` mapping to expose it directly.
 - **Drop Traefik**: remove the `proxy` service and the `traefik.*` labels,
   and publish each service's `ports:` directly.
-- **Rebuild after editing `web/` or `api/`**: `just rm; just up`
-  (`podman-compose`'s `--build` often misses a changed `COPY`; `just rm`
-  deletes the built images so `up` rebuilds them from scratch).
+- **Dev vs release images**: `docker-compose.yml` is for local work. Each
+  service builds from its `Dev.Dockerfile` and bind-mounts its folder, so an
+  edit in `web/` or `api/` shows up without a rebuild (the API restarts itself
+  through `watchfiles`). `release-to-ghcr.yml` builds each folder's
+  `Dockerfile`, which copies the code in. Give your own services the same pair.
+- **Rebuild after editing a `Dev.Dockerfile`**: `just rm; just up -d`
+  (`podman-compose`'s `--build` often misses a change; `just rm` deletes the
+  built images so `up` rebuilds them).
+- **Healthchecks** poll every second, so `up --wait` and `depends_on:
+  condition: service_healthy` return as soon as a service is ready. Keep that
+  pattern for new services.
 - **Bump nixpkgs**: change the `nixpkgs.url` ref in `flake.nix`, then
   `nix flake update`.
 - Rename this file's heading and delete this section once you've made it yours.

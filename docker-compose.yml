@@ -7,9 +7,13 @@
 #
 # Traefik discovers routes from each container's `traefik.*` labels through
 # the Podman API socket that the Nix dev shell exposes as $DOCKER_SOCK.
-# `just up` builds the web + backend images on first run; after editing the
-# ./web or ./api folder run `just rm; just up` to force a clean rebuild
-# (podman-compose's `--build` often misses a changed COPY).
+#
+# This file is for local development: web and backend build from their
+# Dev.Dockerfile and bind-mount their source, so edits apply without a
+# rebuild. Release images build from each folder's Dockerfile. After changing
+# a Dev.Dockerfile, run `just rm; just up -d` (podman-compose's `--build`
+# often misses a change). Healthchecks poll every second so `up --wait` and
+# `depends_on` return as soon as a service is ready.
 
 services:
   proxy:
@@ -22,26 +26,51 @@ services:
       - --api.dashboard=true
       - --api.insecure=true        # dashboard on :8080 with no auth -- dev only
       - --accesslog=true
+      - --ping=true                 # /ping on the web entrypoint, for the healthcheck
     ports:
       - "${PROXY_PORT:-8000}:80"
       - "${PROXY_DASHBOARD_PORT:-8080}:8080"
     volumes:
       - "${DOCKER_SOCK:-/var/run/docker.sock}:/var/run/docker.sock:ro"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 1s
+      timeout: 1s
+      retries: 10
+      start_period: 1s
 
   web:
     build:
       context: ./web
+      dockerfile: Dev.Dockerfile
+    volumes:
+      - ./web:/usr/share/nginx/html:ro,z
+    depends_on:
+      proxy:
+        condition: service_started
     labels:
       - traefik.enable=true
       - traefik.http.routers.web.rule=PathPrefix(`/`)
       - traefik.http.routers.web.priority=1        # catch-all: lowest priority
       - traefik.http.services.web.loadbalancer.server.port=80
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
+      interval: 1s
+      timeout: 1s
+      retries: 10
+      start_period: 1s
 
   backend:
     build:
       context: ./api
+      dockerfile: Dev.Dockerfile
+    volumes:
+      - ./api:/app:ro,z
+    depends_on:
+      proxy:
+        condition: service_started
     environment:
       PORT: "8000"
     labels:
@@ -55,7 +84,7 @@ services:
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')\""]
-      interval: 10s
-      timeout: 3s
-      retries: 3
-      start_period: 5s
+      interval: 1s
+      timeout: 1s
+      retries: 10
+      start_period: 1s
