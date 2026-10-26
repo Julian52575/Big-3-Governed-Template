@@ -245,6 +245,54 @@ jobs:
           path: dependency-audit
           if-no-files-found: ignore
 
+  # How the services work together: boots the whole compose stack and calls
+  # every route through the proxy. CUSTOMISE the checks when you replace the
+  # example services.
+  stack:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PROXY: http://127.0.0.1:8000
+      DASHBOARD: http://127.0.0.1:8080
+    steps:
+      - uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Load .env
+        run: cp .env.example .env
+
+      - name: Build and start the stack, waiting for healthchecks
+        run: docker compose up -d --build --wait --wait-timeout 180
+
+      - name: Call every service through the proxy
+        run: |
+          set -euo pipefail
+          # Traefik picks up routes asynchronously; retry before failing.
+          check() {
+            for _ in $(seq 1 30); do
+              curl -fsS "$1" > /dev/null && { echo "ok    $1"; return 0; }
+              sleep 1
+            done
+            echo "::error::$1 did not respond"
+            return 1
+          }
+          check "$PROXY/"
+          check "$PROXY/api/health"
+          check "$DASHBOARD/api/rawdata"
+
+      - name: Show logs on failure
+        if: failure()
+        run: docker compose logs --no-color
+
+      - name: Tear down
+        if: always()
+        run: docker compose down --volumes --remove-orphans
+
   # Single stable check for the branch ruleset to require.
   # Add a job to `needs` here to make it mandatory to the branch ruleset.
   ci-required:
@@ -256,6 +304,7 @@ jobs:
       - workflow-lint
       - zizmor
       - dependencies-audit
+      - stack
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
