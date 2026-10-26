@@ -101,8 +101,9 @@ commit SHAs) and `jq`.
 container tool, `.env`, the compose file, each container's state, health and
 logs, the host ports, Traefik's routes and the disk, then lists what looks
 wrong in plain words. The full report (logs and state) is saved as
-`.compose-diagnostic-<time>.md` (git-ignored) with `.env` values and other credentials masked: skim it, then
-attach it to your bug issue or send it to the DevOps team.
+`.compose-diagnostic-<time>.md` (git-ignored) with `.env` values and other
+credentials masked: skim it, then attach it to your bug issue or send it to
+the DevOps team.
 
 Record every incident under [`docs/troubleshooting/`](docs/troubleshooting/),
 in a subfolder per area, one Markdown file per incident:
