@@ -43,12 +43,55 @@ jobs:
         with:
           egress-policy: audit
 
+      # The action alone only says "Input required and not supplied: token".
+      - name: Check the RELEASE_PLEASE_GITHUB_TOKEN secret
+        env:
+          TOKEN: ${{ secrets.RELEASE_PLEASE_GITHUB_TOKEN }}
+          SETTINGS_URL: ${{ github.server_url }}/${{ github.repository }}/settings/secrets/actions
+        run: |
+          [ -n "$TOKEN" ] && exit 0
+          msg="The RELEASE_PLEASE_GITHUB_TOKEN secret is not set, so release-please cannot open the Release PR or publish releases."
+          echo "::error title=RELEASE_PLEASE_GITHUB_TOKEN is missing::$msg Create a fine-grained token (or GitHub App token) on this repository with Contents: Read and write and Pull requests: Read and write, then add it at $SETTINGS_URL (or run ./adapt.py --gh-vars)."
+          {
+            echo "### release-please: RELEASE_PLEASE_GITHUB_TOKEN is missing"
+            echo
+            echo "$msg"
+            echo
+            echo "1. Create a [fine-grained personal access token](https://github.com/settings/personal-access-tokens/new) (or a GitHub App token):"
+            echo "   - **Repository access:** only \`$GITHUB_REPOSITORY\`"
+            echo "   - **Permissions:** *Contents* → Read and write, *Pull requests* → Read and write"
+            echo "2. Add it as the Actions secret \`RELEASE_PLEASE_GITHUB_TOKEN\`: [repository secrets]($SETTINGS_URL), or \`./adapt.py --gh-vars\`."
+            echo "3. Re-run this workflow."
+            echo
+            echo "The built-in \`GITHUB_TOKEN\` is not used on purpose: releases it creates do not trigger \`release-to-ghcr.yml\`."
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 1
+
       - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
         id: release-please
         with:
           token: ${{ secrets.RELEASE_PLEASE_GITHUB_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+
+      # A token without the right permissions fails inside the action with a
+      # bare 403 ("Resource not accessible by personal access token").
+      - name: Explain a token permission failure
+        if: failure() && steps.release-please.outcome == 'failure'
+        env:
+          SETTINGS_URL: ${{ github.server_url }}/${{ github.repository }}/settings/secrets/actions
+        run: |
+          echo "::error title=release-please failed::If the log above shows 403, 'Resource not accessible' or 'Bad credentials', RELEASE_PLEASE_GITHUB_TOKEN lacks access: it needs access to $GITHUB_REPOSITORY with Contents: Read and write and Pull requests: Read and write, and must not be expired. Replace it at $SETTINGS_URL (or ./adapt.py --gh-vars)."
+          {
+            echo "### release-please failed"
+            echo
+            echo "If the log shows **403**, *Resource not accessible* or *Bad credentials*, \`RELEASE_PLEASE_GITHUB_TOKEN\` is the cause. It must:"
+            echo "- have access to \`$GITHUB_REPOSITORY\`;"
+            echo "- grant *Contents* and *Pull requests*: **Read and write**;"
+            echo "- not be expired."
+            echo
+            echo "Replace it in the [repository secrets]($SETTINGS_URL) or with \`./adapt.py --gh-vars\`, then re-run this workflow."
+          } >> "$GITHUB_STEP_SUMMARY"
 
       # Runs only on the push that merged the Release PR: hook publish steps
       # here, gated on the same condition.
