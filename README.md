@@ -61,6 +61,13 @@ Making your own repo from it? Click **Use this template**, then run
     Then run the commands in [What the shell does](#what-the-shell-does)
     yourself. `just` uses Podman, or Docker when Podman is missing.
 
+> **Disk usage:** the Nix store and Podman's image storage grow quietly and
+> can reach tens of GB. The shell warns when either exceeds 10 GiB; check with
+> `du -sh /nix/store` and `podman system df`, reclaim with
+> `nix-collect-garbage -d` and `podman system prune -a`. See the NixOS wiki's
+> [Storage optimization](https://wiki.nixos.org/wiki/Storage_optimization)
+> for more ways to shrink the Nix store.
+
 Ubuntu in two commands:
 
 ```bash
