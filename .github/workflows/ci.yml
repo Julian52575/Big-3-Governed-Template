@@ -30,6 +30,10 @@ jobs:
     env:
       PODMAN_NO_SOCKET: "1" # don't spawn a Podman API socket in CI
     steps:
+      - uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           # No git writes in this job; do not leave the token in .git/config.
@@ -37,7 +41,7 @@ jobs:
 
       # Local composite action: check out first, then it installs Nix.
       # `nix flake check` below already evaluates the flake, so skip the warm.
-      - uses: ./.github/actions/setup-devshell
+      - uses: ./.github/actions/setup-devshell # zizmor: ignore[self-repository] -- actionlint rejects `$/`
         with:
           warm: "false"
 
@@ -52,17 +56,127 @@ jobs:
             podman-compose -f docker-compose.yml config >/dev/null
           '
 
+  # Every Dockerfile / Containerfile tracked in the repo -- a new one is
+  # picked up without touching this workflow. Mounts the repo so hadolint
+  # reads a root .hadolint.yaml if one exists.
+  dockerfile-lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Lint every Dockerfile with hadolint
+        run: |
+          set -uo pipefail
+          mapfile -t files < <(git ls-files -- \
+            '*Dockerfile' '*Dockerfile.*' '*Containerfile' '*Containerfile.*')
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "no Dockerfile found"
+            exit 0
+          fi
+
+          failed=0
+          for f in "${files[@]}"; do
+            echo "--- $f"
+            # hadolint v2.12.0
+            if docker run --rm -v "$PWD:/repo:ro" -w /repo \
+              docker.io/hadolint/hadolint@sha256:30a8fd2e785ab6176eed53f74769e04f125afb2f74a6c52aef7d463583b6d45e \
+              hadolint "$f"; then
+              echo "ok    $f"
+            else
+              echo "::error file=$f::hadolint reported issues in $f"
+              failed=1
+            fi
+          done
+          exit "$failed"
+
+  # The compose file parses and interpolates cleanly with the example .env.
+  compose-lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Load .env
+        run: cp .env.example .env
+
+      - name: Validate docker-compose.yml
+        run: docker compose config --quiet
+
+  # Every workflow under .github/workflows, including a shellcheck pass on each
+  # `run:` script (bundled in the actionlint image).
+  workflow-lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Lint with actionlint 1.7.12
+        run: >-
+          docker run --rm -v "$PWD:/repo:ro" -w /repo
+          docker.io/rhysd/actionlint@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667
+          -color
+
+  # Security audit of every workflow and action; findings show as PR annotations.
+  # Keep the version in sync with nix/tools.nix.
+  zizmor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Audit workflows with zizmor
+        env:
+          GH_TOKEN: ${{ github.token }} # online audits (impostor commits, known-vulnerable actions)
+        run: pipx run zizmor==1.31.1 --format github .github/
+
   # Single stable check for the branch ruleset to require.
   # Add a job to `needs` here to make it mandatory to the branch ruleset.
   ci-required:
     if: always()
-    needs: [devshell]
+    needs:
+      - devshell
+      - dockerfile-lint
+      - compose-lint
+      - workflow-lint
+      - zizmor
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
+
       - name: Every required job passed
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
         run: |
-          if printf '%s\n' '${{ join(needs.*.result, ' ') }}' | grep -Eqw 'failure|cancelled'; then
-            echo "a required job did not succeed: ${{ join(needs.*.result, ', ') }}"
+          # Anything but `success` (failure, cancelled, skipped) fails the gate.
+          if printf '%s\n' "$RESULTS" | tr ' ' '\n' | grep -vqx 'success'; then
+            echo "a required job did not succeed: $RESULTS"
             exit 1
           fi
