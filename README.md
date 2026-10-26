@@ -231,7 +231,7 @@ checklist below yourself.
 | Require a pull request | 1 approval, dismiss stale approvals on push | no direct pushes to `main` |
 | Require review from Code Owners | on | routes review to owners once you add a `CODEOWNERS` file |
 | Require conversation resolution | on | no merging over unresolved threads |
-| Require status checks | `ci-required`, `conventional-title`, strict (branch up to date) | `main` only ever sees green, rebased commits |
+| Require status checks | `ci-required`, `conventional-title`, `linked-issue`, strict (branch up to date) | `main` only ever sees green, rebased commits |
 | Require linear history | on | pairs with squash-only merges — readable `main` |
 | Block force pushes | on | history on `main` is append-only |
 | Restrict deletions | on | `main` can't be deleted |
@@ -313,8 +313,18 @@ manually via `workflow_dispatch`). It hardens against the common CI foot-guns:
 - **Least-privilege `permissions:`** declared per workflow, on top of the
   read-only `GITHUB_TOKEN` default `scripts/apply-governance.sh` sets for the
   whole repo.
-- **`persist-credentials: false`** on `actions/checkout` in jobs that never
-  push, so the token isn't left on disk for later steps to read.
+- **`persist-credentials: false`** on every `actions/checkout`; the few jobs
+  that push pass their token to that one step through `env:`, so it is never
+  left in `.git/config` for later steps to read.
+- **`step-security/harden-runner`** as the first step of every job (egress
+  audit mode), and no `${{ … }}` expanded inside `run:` scripts.
+- **`zizmor`** and **actionlint** audit every workflow on each PR; run the same
+  checks locally with `just lint-workflows`.
+
+Jobs aggregated by `ci-required`: `devshell` (flake evaluates for every
+system), `dockerfile-lint` (hadolint), `compose-lint`, `workflow-lint`,
+`zizmor`, `dependencies-audit` (osv-scanner on every lockfile) and `stack`
+(boots the compose stack and calls each route through the proxy).
 
 ### `setup-devshell` composite action
 

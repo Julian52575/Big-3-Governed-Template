@@ -6,6 +6,31 @@
 > **Baseline:** this repo at `411742b` (`main`).
 > Ignore `../Zero-To-Kaban/.claude/worktrees/**` — stale worktrees, not sources.
 
+## Status: implemented on `feat/import-other-projects`
+
+Every task T1–T14 is implemented, one commit per task. Deviations from the
+plan, and issues found along the way:
+
+- **T2:** the template's `ossf/scorecard-action` pin pointed at a SHA that does
+  not exist upstream; re-pinned to the real v2.4.4 commit (separate `fix(ci)`
+  commit).
+- **T2b:** `pin-github-action` in SPW did have its hashes; copied as-is.
+- **T3:** the new `sigstore/cosign-installer` SHA (`dc72c7d…`) is the correct
+  v3.7.0 commit; SPW `main`'s old one was wrong.
+- **T5:** the Code of Conduct is Contributor Covenant **2.0** (ZTK's copy),
+  not 2.1; the enforcement contact is `[INSERT CONTACT METHOD]`.
+- **T7:** implemented with osv-scanner 2.7.0 (container, pinned by digest)
+  instead of `npm audit`.
+- **T8:** the stack job exposed that `traefik:v3.3` cannot talk to Docker
+  Engine 29 (client API 1.24); bumped to `v3.7` (separate `fix(compose)` commit).
+- **T10:** `.sast/bin/*-report.sh` crashed under `set -u` without a `*_SCOPE`
+  variable; fixed. SonarQube and report commits switch on by secret.
+- **T11:** macOS uses host Podman (Podman Desktop/Homebrew); `podman` itself is
+  Linux-only in the flake. The Darwin branch is evaluated and syntax-checked
+  but was not run on a Mac.
+- **T14:** both workflows are enabled with repository variables
+  (`MAKE_PR_DRAFT`, `DISCORD_NOTIFY`).
+
 ## 0. Rules for the implementer
 
 1. **One task = one branch = one PR**, Conventional Commit title (`ci: …`, `feat(devshell): …`, `docs: …`). Every PR needs a linked issue (the `linked-issue` check is required).
