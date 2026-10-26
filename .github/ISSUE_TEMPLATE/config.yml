@@ -7,7 +7,7 @@ contact_links:
     url: https://github.com/OWNER/REPO/security/advisories/new
     about: Report privately through a security advisory. Never open a public issue for a vulnerability.
 
-  # Uncomment and fill in once GitHub Discussions is enabled for the repo:
-  # - name: Question / help
-  #   url: https://github.com/OWNER/REPO/discussions
-  #   about: For "how do I..." questions and open-ended discussion -- not a bug or a proposal.
+  # Needs GitHub Discussions enabled (also used for ADRs). Replace OWNER/REPO.
+  - name: Question / help
+    url: https://github.com/OWNER/REPO/discussions
+    about: For "how do I..." questions and open-ended discussion -- not a bug or a proposal.

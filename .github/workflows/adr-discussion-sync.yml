@@ -1,0 +1,406 @@
+name: adr-discussion-sync
+
+# When a GitHub Discussion in the "Architecture Decision Records" category is
+# CLOSED:
+#
+#   * If the decision is not "Accepted", do nothing.
+#   * The target branch is normally the `branch` field in the discussion body,
+#     but a failsafe lets anyone closing the discussion override it: if the
+#     discussion is closed with a comment starting with "/commit <branch>",
+#     that branch wins over the body field. This lets someone who isn't the
+#     author close the discussion quickly without editing the post.
+#   * If no branch can be found (body field empty, no /commit override), or
+#     the resolved branch name is not a valid git branch name, comment asking
+#     for a valid one and reopen the discussion so it can be closed again.
+#   * Otherwise render the discussion (body + comments) into
+#     docs/adr/<discussion title>.md and commit it straight to that branch.
+
+on:
+  discussion:
+    types: [closed]
+
+permissions: {}
+
+concurrency:
+  group: adr-discussion-sync-${{ github.event.discussion.number }}
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    # Only discussions filed under the ADR category.
+    if: github.event.discussion.category.name == 'Architecture Decision Records'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write # push the ADR document to the target branch
+      discussions: write # comment on / reopen the discussion
+    steps:
+      - uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Parse the ADR form fields and the /commit failsafe
+        id: fields
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        with:
+          github-token: ${{ secrets.ADR_SYNC_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+          script: |
+            const body = context.payload.discussion.body || '';
+
+            // Discussion forms render each field as its own "### <Label>"
+            // heading line, followed by the value, up to the next "### "
+            // heading. Anchor on the heading actually starting a line (`^`
+            // with the `m` flag) so a value that happens to contain the
+            // literal text "### <NextLabel>" can't be mistaken for the next
+            // field and swallow it whole. An unanswered optional field
+            // renders as the literal placeholder "_No response_" -- treat
+            // that as empty rather than as a real value.
+            const field = (label) => {
+              const re = new RegExp(
+                `^### ${label}\\s*\\r?\\n([\\s\\S]*?)(?=\\r?\\n### |$)`,
+                'm',
+              );
+              const m = body.match(re);
+              const value = m ? m[1].trim() : '';
+              return value === '_No response_' ? '' : value;
+            };
+
+            const decision = field('Decision');
+            const bodyBranch = field('Branch');
+
+            // Failsafe: whoever closes the discussion can override the branch
+            // with "Close with comment" + "/commit <branch_name>", without
+            // needing to be the author or edit the discussion body.
+            // The most recent comment is the one that closed the discussion.
+            const { repository } = await github.graphql(
+              `query ($owner: String!, $repo: String!, $number: Int!) {
+                repository(owner: $owner, name: $repo) {
+                  discussion(number: $number) {
+                    comments(last: 1) {
+                      nodes { body }
+                    }
+                  }
+                }
+              }`,
+              {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                number: context.payload.discussion.number,
+              },
+            );
+            const lastComment = repository.discussion.comments.nodes[0];
+            const commitMatch = (lastComment ? lastComment.body : '')
+              .trim()
+              .match(/^\/commit\s+(\S+)/);
+            const commentBranch = commitMatch ? commitMatch[1] : '';
+
+            const branch = commentBranch || bodyBranch;
+
+            // Minimal subset of git's ref-name rules (see check-ref-format).
+            const isValidBranchName = (name) =>
+              !!name &&
+              name.length <= 255 &&
+              !/\s/.test(name) &&
+              !name.startsWith('/') &&
+              !name.endsWith('/') &&
+              !name.startsWith('-') &&
+              !name.includes('..') &&
+              !name.includes('//') &&
+              !name.includes('@{') &&
+              name !== '@' &&
+              !name.endsWith('.') &&
+              !name.endsWith('.lock') &&
+              !/[\x00-\x1f\x7f~^:?*\[\\]/.test(name);
+
+            let status;
+            if (!branch) status = 'missing';
+            else if (!isValidBranchName(branch)) status = 'invalid';
+            else status = 'ok';
+
+            core.setOutput('decision', decision);
+            core.setOutput('branch', branch);
+            core.setOutput('status', status);
+            core.info(
+              `decision="${decision}" branch="${branch}" status="${status}" source="${commentBranch ? '/commit comment' : 'body field'}"`,
+            );
+
+      - name: Ask for a valid branch and reopen the discussion
+        if: steps.fields.outputs.decision == 'Accepted' && steps.fields.outputs.status != 'ok'
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        env:
+          STATUS: ${{ steps.fields.outputs.status }}
+          BRANCH: ${{ steps.fields.outputs.branch }}
+        with:
+          github-token: ${{ secrets.ADR_SYNC_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+          script: |
+            const discussionId = context.payload.discussion.node_id;
+            const hint =
+              "\n### Hint\n\nEither update the document and close discussion OR 'Close with comment' with `/commit <branch_name>` and write additional information if needed.\n\n##### Previous `/commit`s are always ignored.";
+            const message =
+              process.env.STATUS === 'invalid'
+                ? `This discussion cannot be closed yet. Branch \`${process.env.BRANCH}\` is invalid.\n${hint}`
+                : `This discussion cannot be closed yet. Please specify a branch so I can commit the markdown document to it.\n${hint}`;
+
+            await github.graphql(
+              `mutation ($discussionId: ID!, $body: String!) {
+                addDiscussionComment(input: { discussionId: $discussionId, body: $body }) {
+                  comment { id }
+                }
+              }`,
+              { discussionId, body: message },
+            );
+
+            await github.graphql(
+              `mutation ($discussionId: ID!) {
+                reopenDiscussion(input: { discussionId: $discussionId }) {
+                  discussion { id }
+                }
+              }`,
+              { discussionId },
+            );
+
+      - name: Check out the target branch
+        if: steps.fields.outputs.decision == 'Accepted' && steps.fields.outputs.status == 'ok'
+        env:
+          FETCH_TOKEN: ${{ github.token }}
+          TARGET_BRANCH: ${{ steps.fields.outputs.branch }}
+        run: |
+          set -euo pipefail
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Explicit remote: checkout does not persist credentials.
+          remote="https://x-access-token:${FETCH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          if git ls-remote --exit-code --heads "$remote" "$TARGET_BRANCH" >/dev/null 2>&1; then
+            git fetch "$remote" "$TARGET_BRANCH"
+            git checkout -B "$TARGET_BRANCH" FETCH_HEAD
+          else
+            git checkout -B "$TARGET_BRANCH"
+          fi
+
+      - name: Render the discussion into docs/adr
+        id: render
+        if: steps.fields.outputs.decision == 'Accepted' && steps.fields.outputs.status == 'ok'
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        with:
+          github-token: ${{ secrets.ADR_SYNC_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            const number = context.payload.discussion.number;
+
+            // ---- pull the whole discussion; comments are paginated ----
+            const query = `
+              query ($owner: String!, $repo: String!, $number: Int!, $cursor: String) {
+                repository(owner: $owner, name: $repo) {
+                  discussion(number: $number) {
+                    number
+                    title
+                    url
+                    body
+                    createdAt
+                    category { name }
+                    author { login }
+                    comments(first: 50, after: $cursor) {
+                      pageInfo { hasNextPage endCursor }
+                      nodes {
+                        body
+                        createdAt
+                        author { login }
+                        replies(first: 100) {
+                          nodes { body createdAt author { login } }
+                        }
+                      }
+                    }
+                  }
+                }
+              }`;
+
+            let cursor = null;
+            let discussion = null;
+            const comments = [];
+            do {
+              const res = await github.graphql(query, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                number,
+                cursor,
+              });
+              discussion = res.repository.discussion;
+              comments.push(...discussion.comments.nodes);
+              cursor = discussion.comments.pageInfo.hasNextPage
+                ? discussion.comments.pageInfo.endCursor
+                : null;
+            } while (cursor);
+
+            const who = (a) => (a && a.login ? `@${a.login}` : '@ghost');
+            const when = (iso) =>
+              new Date(iso).toISOString().replace('T', ' ').slice(0, 16) + 'Z';
+
+            // ---- target file: docs/adr/<discussion title>-#<number>.md ----
+            const illegal = /[\/\\?%*:|"<>]/g; // path / FS unsafe characters
+            const safeTitle =
+              discussion.title
+                .trim()
+                .replace(illegal, '-')
+                .replace(/\s+/g, '-') // no spaces in the filename
+                .replace(/-+/g, '-')
+                .replace(/^[-.]+/, '')
+                .replace(/[-.]+$/, '')
+                .slice(0, 200) || `discussion-${number}`;
+            const dir = 'docs/adr';
+            const file = path.join(dir, `${safeTitle}-#${number}.md`);
+            fs.mkdirSync(dir, { recursive: true });
+
+            const out = [];
+            out.push(`# ${discussion.title}`);
+            out.push('');
+            out.push(`- **Discussion:** [#${discussion.number}](${discussion.url})`);
+            out.push(`- **Category:** ${discussion.category.name}`);
+            out.push(`- **Original poster:** ${who(discussion.author)}`);
+            out.push(`- **Opened:** ${when(discussion.createdAt)}`);
+            out.push(`- **Closed:** ${when(new Date().toISOString())}`);
+            out.push('');
+            out.push('### Discussion');
+            out.push('');
+            out.push(discussion.body.trim() || '_(empty body)_');
+            out.push('');
+            out.push('---');
+            out.push('## Comments');
+            out.push('');
+            if (comments.length === 0) {
+              out.push('_No comments._');
+              out.push('');
+            } else {
+              for (const c of comments) {
+                out.push(`#### ${who(c.author)} -- ${when(c.createdAt)}`);
+                out.push('');
+                out.push(c.body.trim() || '_(empty comment)_');
+                out.push('');
+                for (const r of c.replies.nodes) {
+                  out.push(`> **${who(r.author)}** -- ${when(r.createdAt)}`);
+                  out.push('>');
+                  for (const line of (r.body.trim() || '_(empty reply)_').split('\n')) {
+                    out.push(`> ${line}`);
+                  }
+                  out.push('');
+                }
+              }
+            }
+            out.push('');
+
+            fs.writeFileSync(file, out.join('\n'));
+
+            core.setOutput('file', file);
+            core.setOutput('title', discussion.title);
+
+      - name: Commit and push to the target branch
+        id: commit
+        if: steps.fields.outputs.decision == 'Accepted' && steps.fields.outputs.status == 'ok'
+        continue-on-error: true # a failure here is reported as a comment below, not a red workflow run
+        env:
+          # ADR_SYNC_GITHUB_TOKEN (PAT / App token, Contents: write) is only
+          # needed when the target branch is protected; scoped to this step.
+          PUSH_TOKEN: ${{ secrets.ADR_SYNC_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+          TARGET_BRANCH: ${{ steps.fields.outputs.branch }}
+          DOC_TITLE: ${{ steps.render.outputs.title }}
+          DISCUSSION_NUMBER: ${{ github.event.discussion.number }}
+        run: |
+          set -uo pipefail
+          git add docs/adr
+
+          if ! git status --porcelain docs/adr | grep -q .; then
+            echo "Nothing changed -- discussion already in sync."
+            echo "committed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          error_log=""
+          if ! error_log=$(git commit -m "docs(adr): accepted adr \"$DOC_TITLE\" (#$DISCUSSION_NUMBER)" 2>&1); then
+            :
+          elif ! error_log=$(git push "https://x-access-token:${PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:$TARGET_BRANCH" 2>&1); then
+            :
+          else
+            error_log=""
+          fi
+
+          if [ -n "$error_log" ]; then
+            echo "$error_log"
+            echo "committed=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "error<<ADR_COMMIT_ERROR_EOF"
+              echo "$error_log"
+              echo "ADR_COMMIT_ERROR_EOF"
+            } >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+          echo "committed=true" >> "$GITHUB_OUTPUT"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Comment the commit outcome
+        if: steps.fields.outputs.decision == 'Accepted' && steps.fields.outputs.status == 'ok' && steps.commit.outputs.committed != ''
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        env:
+          TARGET_BRANCH: ${{ steps.fields.outputs.branch }}
+          COMMITTED: ${{ steps.commit.outputs.committed }}
+          SHA: ${{ steps.commit.outputs.sha }}
+          ERROR_LOG: ${{ steps.commit.outputs.error }}
+          DOC_FILE: ${{ steps.render.outputs.file }}
+        with:
+          github-token: ${{ secrets.ADR_SYNC_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+          script: |
+            const discussionId = context.payload.discussion.node_id;
+            const { owner, repo } = context.repo;
+            const branch = process.env.TARGET_BRANCH;
+            const base = context.serverUrl;
+
+            const addComment = (body) =>
+              github.graphql(
+                `mutation ($discussionId: ID!, $body: String!) {
+                  addDiscussionComment(input: { discussionId: $discussionId, body: $body }) {
+                    comment { id }
+                  }
+                }`,
+                { discussionId, body },
+              );
+
+            if (process.env.COMMITTED === 'true') {
+              const sha = process.env.SHA;
+              const shortSha = sha.slice(0, 7);
+              const commitLink = `${base}/${owner}/${repo}/commit/${sha}`;
+
+              await addComment(
+                `This discussion was committed into \`${branch}\`: [${shortSha}](${commitLink})`,
+              );
+              return;
+            }
+
+            // committed === 'false' with an error log -- the commit/push failed.
+            if (!process.env.ERROR_LOG) return; // nothing changed, already in sync -- no comment needed
+
+            const runLink = `${base}/${owner}/${repo}/actions/runs/${context.runId}`;
+            const editLink = `${base}/${owner}/${repo}/edit/${branch}/${process.env.DOC_FILE}`;
+
+            await addComment(
+              `This discussion cannot be closed yet. An error occurred when committing:\n\n` +
+                '```\n' + process.env.ERROR_LOG + '\n```' +
+                `\n\n##### [See workflow run](${runLink})\n\n` +
+                `You can wait for the issue to be fixed or manually copy the discussion body and comments' markdown into [${branch}:${process.env.DOC_FILE}](${editLink})`,
+            );
+
+            await github.graphql(
+              `mutation ($discussionId: ID!) {
+                reopenDiscussion(input: { discussionId: $discussionId }) {
+                  discussion { id }
+                }
+              }`,
+              { discussionId },
+            );

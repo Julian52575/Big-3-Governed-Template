@@ -10,6 +10,14 @@ body:
         - label: I searched open and closed issues and this is not a duplicate
           required: true
 
+  - type: input
+    attributes:
+      label: ADR discussion
+      description: "Link to the Architecture Decision Record discussion this issue relates to."
+      placeholder: https://github.com/OWNER/REPO/discussions/...
+    validations:
+      required: false
+
   - type: textarea
     attributes:
       label: Problem
@@ -42,3 +50,9 @@ body:
         - Large -- weeks, needs breaking down
     validations:
       required: false
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        💡 Architectural changes need an "Accepted" [Architecture Decision Records discussion](https://github.com/OWNER/REPO/discussions/categories/architecture-decision-records) linked before work starts. A placeholder issue may be created without it.

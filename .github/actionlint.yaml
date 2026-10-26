@@ -1,0 +1,11 @@
+# actionlint configuration.
+# https://github.com/rhysd/actionlint/blob/main/docs/config.md
+
+paths:
+  .github/workflows/adr-discussion-sync.yml:
+    ignore:
+      # GitHub added `closed` / `reopened` as `discussion` webhook activity
+      # types in 2023 (see the "discussion" event in
+      # docs.github.com/webhooks/webhook-events-and-payloads). actionlint's
+      # bundled webhook database still lacks them, so it flags a valid trigger.
+      - 'invalid activity type "closed" for "discussion" Webhook event'
