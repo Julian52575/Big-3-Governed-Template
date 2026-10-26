@@ -19,8 +19,9 @@ just               # list every command
 
 | URL | goes to |
 | --- | ------- |
-| <http://localhost:8000/> | `web` — nginx serving `web/index.html` |
-| <http://localhost:8000/api/> | `backend` — Python JSON API from `api/` |
+| <http://localhost:8000/> | `frontend` — [React](https://react.dev/) + [Vite](https://vite.dev/) dev server (hot reload) |
+| <http://localhost:8000/api/health> | `backend` — [Express](https://expressjs.com/) + [Prisma](https://www.prisma.io/docs) on Node.js 24 |
+| — | `db` — PostgreSQL 18, used by the backend through Prisma |
 | <http://localhost:8080/> | Traefik dashboard (local only) |
 
 Making your own repo from it? Click **Use this template**, then work through
@@ -85,7 +86,7 @@ and `direnv allow` load the shell automatically on `cd`.
 | `just rm` | stop the stack and delete its images (next `up` rebuilds) |
 | `just nuke` | also delete volumes (asks first; refuses on `main` or a release tag unless `NUKE_ANYWAY=1`) |
 | `just lint-workflows` | actionlint + zizmor + schema check, as CI does |
-| `just database-dump` / `database-pipe <file>` | Postgres backup/restore — commented out until you add a `db` service |
+| `just database-dump` / `database-pipe <file>` | Postgres backup/restore in `pg_dump -Fc` format (`db_backup_<timestamp>.dump`, gitignored) |
 
 ## Governance
 
@@ -125,13 +126,14 @@ All workflows follow the same hardening: actions pinned to a commit SHA
 
 | Workflow | Does |
 | -------- | ---- |
-| `ci.yml` | flake evaluation, hadolint, compose check, actionlint, zizmor, [osv-scanner](https://google.github.io/osv-scanner/) dependency audit, boots the stack and calls every route; all gated by the single `ci-required` job |
+| `ci.yml` | flake evaluation, lint + test + build of each Node.js service, hadolint, compose check, actionlint, zizmor, [osv-scanner](https://google.github.io/osv-scanner/) dependency audit, boots the stack and calls every route; all gated by the single `ci-required` job |
 | `ci-sast.yml` | [CodeQL](https://codeql.github.com/docs/) always, [SonarQube Cloud](https://docs.sonarsource.com/sonarqube-cloud/) when its token is set; see [`.sast/README.md`](.sast/README.md) |
 | `check-conventional-commit-pr-title.yml` | PR title is a Conventional Commit (advisory, not required) |
 | `openssf-scorecard.yml` | weekly [OpenSSF Scorecard](https://scorecard.dev/); results go to the `openssf-update` branch and an issue with a one-click PR link. The README badge reads the merged result from `main`. |
 | `release-please.yml` | keeps a [release-please](https://github.com/googleapis/release-please) Release PR open; merging it tags and publishes the release |
 | `release-to-ghcr.yml` | on release: builds each image, pushes to GHCR with SBOM + provenance, signs keyless with [cosign](https://docs.sigstore.dev/cosign/signing/overview/) |
 | `make-pr-draft.yml` | opt-in (`MAKE_PR_DRAFT=true` variable): new PRs start as drafts |
+| `notify-discord-review-requested.yml` | opt-in (`DISCORD_WEBHOOK_URL` secret): posts review requests to a Discord channel |
 
 `.github/actions/setup-devshell` installs Nix and caches the store in the
 GitHub Actions cache (no account needed). For a cache shared with your
@@ -142,8 +144,9 @@ machine, swap it for [Cachix](https://docs.cachix.org/continuous-integration-set
 ```
 flake.nix, flake.lock, nix/tools.nix   dev shell and pinned tools
 justfile                               project commands
-docker-compose.yml                     Traefik proxy + example web + backend
-web/, api/                             example services: Dockerfile (release) + Dev.Dockerfile (live reload)
+docker-compose.yml                     Traefik proxy + frontend + backend + Postgres
+frontend/                              React + Vite placeholder (Vitest, oxlint)
+backend/                               Express + Prisma placeholder (Jest, supertest, oxlint)
 .config/podman/                        rootless Podman config (storage.conf is generated)
 .env.example                           template for .env
 .githooks/                             commit-msg checks
@@ -162,10 +165,17 @@ Adapt-Readme.md, CONTRIBUTING.md, AGENTS.md
 - **Tools:** add them to `packages` in `flake.nix` (or `nix/tools.nix` for
   versions nixpkgs lacks). Bump nixpkgs by editing `nixpkgs.url`, then
   `nix flake update`.
-- **Services:** replace `web` and `backend`. Keep the pattern: a release
-  `Dockerfile`, a `Dev.Dockerfile` with the source bind-mounted, 1-second
-  healthchecks, and `traefik.*` labels (or `ports:` bound to `127.0.0.1`).
-  After editing a `Dev.Dockerfile`, run `just rebuild <svc>`.
+- **Services:** `frontend` and `backend` are placeholders; build on them or
+  replace them. Each has a release `Dockerfile` and a `Dev.Dockerfile` whose
+  source is bind-mounted, with `node_modules` in a named volume
+  (`<service>-node-modules`). After changing `package.json` or a
+  `Dev.Dockerfile`, run `just rebuild <svc>`; it also resets that volume.
+  Keep the 1-second healthchecks and `traefik.*` labels (or `ports:` bound to
+  `127.0.0.1`).
+- **Database schema:** edit `backend/prisma/schema.prisma`, then
+  `just exec backend npx prisma migrate dev --name <change>` and commit the
+  new migration. Migrations are applied on every backend start.
+  See [Prisma Migrate](https://www.prisma.io/docs/orm/prisma-migrate).
 - **No Traefik:** remove the `proxy` service and the labels, publish ports
   directly.
 

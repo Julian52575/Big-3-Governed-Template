@@ -1,6 +1,0 @@
-# Each service is its own build context, so the root .containerignore
-# does not apply here.
-Dev.Dockerfile
-.dockerignore
-*.md
-__pycache__

@@ -1,0 +1,44 @@
+name: notify-discord-review-requested
+
+# Posts review requests to Discord (its /github webhook endpoint ignores
+# review_requested). Opt-in: does nothing until the DISCORD_WEBHOOK_URL secret
+# is set. Fork PRs never receive secrets, so they skip too.
+
+on:
+  pull_request:
+    types: [review_requested]
+
+permissions: {}
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # `secrets` is not available in a job-level `if`, so each step tests this.
+    env:
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+    steps:
+      - uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        if: env.DISCORD_WEBHOOK_URL != ''
+        with:
+          egress-policy: audit
+
+      - name: Post to Discord
+        if: env.DISCORD_WEBHOOK_URL != ''
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          SENDER: ${{ github.event.sender.login }}
+          REVIEWER: ${{ github.event.requested_reviewer.login || github.event.requested_team.name }}
+        run: |
+          jq -n \
+            --arg title "#$PR_NUMBER $PR_TITLE" \
+            --arg url "$PR_URL" \
+            --arg desc "$SENDER requested a review from $REVIEWER" \
+            '{embeds: [{title: $title, url: $url, description: $desc, color: 15105570}], allowed_mentions: {parse: []}}' \
+          | curl -fsS -X POST -H 'Content-Type: application/json' --data-binary @- "$DISCORD_WEBHOOK_URL"
+
+      - name: Skipped
+        if: env.DISCORD_WEBHOOK_URL == ''
+        run: echo "DISCORD_WEBHOOK_URL is not set -- no Discord notification."

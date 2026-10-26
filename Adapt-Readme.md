@@ -31,7 +31,7 @@ what breaks if you skip it. Steps marked *(optional)* switch on extra features.
 | `README.md` (top) | `Julian52575/Big-3-Governed-Template` in the badge URL; the title, intro, *Customising* section and © line | badge shows the template's score |
 | `.github/ISSUE_TEMPLATE/config.yml` | `OWNER/REPO` in the security-advisory link | vulnerability reports go to the wrong repo |
 | `CODE_OF_CONDUCT.md` | `[INSERT CONTACT METHOD]` | nobody to report conduct issues to |
-| `release-please-config.json` | `"package-name": "REPO"`; `"release-type": "simple"` → your language (`node`, `python`, `rust`, …) so version files are bumped | releases work, but no package version file is updated |
+| `release-please-config.json` | `"package-name": "REPO"`; `"release-type": "simple"` → e.g. `node` per package so `package.json` versions are bumped | releases work, but no package version file is updated |
 | `.release-please-manifest.json` | your current version, if not `0.0.0` | the first release is computed from `0.0.0` |
 | `.readme-badges/`, `SCORECARD.md` | delete; the Scorecard workflow regenerates them | the template's old results are shown |
 
@@ -69,6 +69,7 @@ Then, by hand:
 | ------ | ---------- | ----- | -------- |
 | `RELEASE_PLEASE_GITHUB_TOKEN` | `release-please.yml` | fine-grained PAT or GitHub App token on this repo: *Contents* and *Pull requests* read/write | release-please fails; with the built-in token instead, releases would not trigger `release-to-ghcr.yml` |
 | `SONARQUBE_TOKEN` *(optional)* | `ci-sast.yml` SonarQube job | SonarQube Cloud analysis token | SonarQube is skipped; CodeQL still runs |
+| `DISCORD_WEBHOOK_URL` *(optional)* | `notify-discord-review-requested.yml` | a Discord channel webhook URL (*Channel settings → Integrations → Webhooks*, [docs](https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks)) | no Discord notification; the job runs and skips its steps |
 | `SAST_REPORT_TOKEN` *(optional)* | `ci-sast.yml` report commits on `main` | fine-grained PAT: *Contents* read/write; needs a ruleset bypass if `main` is protected | reports stay in the run summary only |
 
 `GITHUB_TOKEN` is provided by Actions; image pushes to GHCR and the Scorecard
@@ -89,8 +90,9 @@ Edit the lines marked `CUSTOMISE`:
 | File | What to change |
 | ---- | -------------- |
 | `.github/workflows/release-to-ghcr.yml` | the `matrix.include` list: one `image` / `context` per image you publish. Images land at `ghcr.io/<owner>/<repo>-<image>`; set each package's visibility in *Packages* after the first push. |
+| `.github/workflows/ci.yml` → `node` | the `service` matrix: one entry per Node.js folder |
 | `.github/workflows/ci.yml` → `stack` | the URLs `Call every service through the proxy` checks, once you replace the example services |
-| `.github/workflows/ci-sast.yml` → `codeql` | `languages:` (ships with `actions` only); compiled languages may need another `build-mode` |
+| `.github/workflows/ci-sast.yml` → `codeql` | `languages:` (ships with `actions, javascript-typescript`); compiled languages may need another `build-mode` |
 | `.github/workflows/ci-sast.yml` → `sonarqube` | steps that generate coverage reports |
 | `.sast/codeql-config.yml` | `paths:` to your sources |
 | `.sast/sonar-project.properties` | `sonar.organization`, `sonar.projectKey`, `sonar.sources`, coverage report paths. In SonarQube Cloud, turn **Automatic Analysis off**. |
@@ -106,7 +108,7 @@ rules in `AGENTS.md` and run `just lint-workflows`.
 
 ## 7. Your application
 
-- Replace `api/` and `web/` with your services. Give each a `Dockerfile`
+- Build on the `frontend/` and `backend/` placeholders, or replace them. Give each a `Dockerfile`
   (release image, code copied in) and a `Dev.Dockerfile` (dependencies only;
   `docker-compose.yml` bind-mounts the source for live reload).
 - In `docker-compose.yml`, keep the 1-second healthchecks and the `traefik.*`
@@ -118,9 +120,9 @@ rules in `AGENTS.md` and run `just lint-workflows`.
   `change-me-…` value so the dev shell generates them.
 - Add tools to `packages` in `flake.nix`, or to `nix/tools.nix` when you need
   a version nixpkgs does not have.
-- With a database: uncomment the Postgres recipes at the end of the
-  `justfile` and make `_pre-nuke` run `just database-dump`, so `just nuke`
-  backs up before deleting volumes.
+- The `db` service is Postgres; change its schema in
+  `backend/prisma/schema.prisma`. Without a database, drop `db`, Prisma and
+  the `database-*` recipes, and set `_pre-nuke` back to `@true`.
 
 ## 8. Check it works
 
