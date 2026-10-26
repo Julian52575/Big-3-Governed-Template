@@ -241,7 +241,11 @@ def check_resources(rep: Report, tool: str, root: Path) -> None:
                     f"`{tool} system prune` frees unused images.")
     rep.section("Disk", f"{root}: {pct}% used, {usage.free // 2**30} GiB free\n" + run([tool, "system", "df"])[1],
                 f"{tool} system df")
-    rep.section("Volumes", run([tool, "volume", "ls"])[1], f"{tool} volume ls")
+    # This project's volumes only: other projects' names stay private.
+    # `system df` above already counts every volume without naming it.
+    project = os.environ.get("COMPOSE_PROJECT_NAME") or re.sub(r"[^a-z0-9_-]", "", root.name.lower())
+    cmd = [tool, "volume", "ls", "--filter", f"label=com.docker.compose.project={project}"]
+    rep.section("Volumes of this project", run(cmd)[1] or "(none)", " ".join(cmd))
 
 
 def main() -> int:
