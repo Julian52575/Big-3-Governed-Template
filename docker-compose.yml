@@ -26,10 +26,15 @@ services:
       - --api.dashboard=true
       - --api.insecure=true        # dashboard on :8080 with no auth -- dev only
       - --accesslog=true
-      - --ping=true                 # /ping on the web entrypoint, for the healthcheck
+      - --ping=true                 # /ping on the dashboard's `traefik` entrypoint, for the healthcheck
+    # Published on 127.0.0.1 only: without an address, Docker and Podman
+    # publish on every interface, which on a server exposes the stack -- and
+    # the unauthenticated dashboard -- to the network (puniemu found its
+    # database open this way). Set PROXY_BIND=0.0.0.0 to share the app on the
+    # LAN; the dashboard stays local.
     ports:
-      - "${PROXY_PORT:-8000}:80"
-      - "${PROXY_DASHBOARD_PORT:-8080}:8080"
+      - "${PROXY_BIND:-127.0.0.1}:${PROXY_PORT:-8000}:80"
+      - "127.0.0.1:${PROXY_DASHBOARD_PORT:-8080}:8080"
     volumes:
       - "${DOCKER_SOCK:-/var/run/docker.sock}:/var/run/docker.sock:ro"
     restart: unless-stopped

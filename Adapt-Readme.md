@@ -110,7 +110,10 @@ rules in `AGENTS.md` and run `just lint-workflows`.
   (release image, code copied in) and a `Dev.Dockerfile` (dependencies only;
   `docker-compose.yml` bind-mounts the source for live reload).
 - In `docker-compose.yml`, keep the 1-second healthchecks and the `traefik.*`
-  labels, or publish `ports:` directly and drop the `proxy` service.
+  labels, or publish `ports:` directly and drop the `proxy` service. Always
+  publish with an address (`"127.0.0.1:5432:5432"`); a bare `"5432:5432"`
+  listens on every interface. `PROXY_BIND=0.0.0.0` in `.env` shares the app
+  on the network.
 - Put new environment variables in `.env.example`; secrets get a
   `change-me-…` value so the dev shell generates them.
 - Add tools to `packages` in `flake.nix`, or to `nix/tools.nix` when you need
