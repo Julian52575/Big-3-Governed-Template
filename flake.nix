@@ -35,7 +35,10 @@
           ] ++ (import ./nix/tools.nix { inherit pkgs; }).all;
 
           shellHook = ''
-            # --- .env (optional) -------------------------------------------
+            # --- .env ----------------------------------------------------
+            if [ ! -e .env ] && [ -f .env.example ]; then
+              cp .env.example .env && echo "env: created .env from .env.example"
+            fi
             if [ -f .env ]; then
               set -a
               . ./.env

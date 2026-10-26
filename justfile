@@ -1,16 +1,20 @@
 set dotenv-load := true
 set shell := ["bash", "-eu", "-c"]
-
-# List available recipes
-default:
-    @just --list
-    @echo "\nusing: {{tool}}"
-
-#### Container
+# Recipes also get their arguments as "$@", so quoted arguments stay intact.
+set positional-arguments := true
 
 # podman if present, else docker -- every recipe goes through this
 tool := `command -v podman >/dev/null && echo podman || echo docker`
 compose := tool + " compose"
+# compose derives the project name from the directory name
+project := lowercase(file_name(justfile_directory()))
+
+# List available recipes
+default:
+    @just --list
+    @echo -e "\nusing '{{tool}}' as a container tool."
+
+#### Container
 
 # Start the stack. Pass `-d` to detach (recommended -- see README).
 up *args:
@@ -25,20 +29,26 @@ rm *args:
     #!/usr/bin/env bash
     set -euo pipefail
     {{compose}} down --remove-orphans {{args}}
-    project="$(basename "$PWD" | tr '[:upper:] ' '[:lower:]-')"
     {{tool}} images -q \
-        --filter "reference=${project}*" --filter "reference=localhost/${project}*" \
+        --filter "reference={{project}}*" --filter "reference=localhost/{{project}}*" \
       | sort -u | xargs -r {{tool}} rmi -f || true
 
 # Like `just rm`, but also delete named volumes -- wipes db data etc.
 nuke *args:
     #!/usr/bin/env bash
     set -euo pipefail
-    read -rp "Delete containers, images AND volumes for this project? type 'yes': " c
+    read -rp "⚠️  Delete containers, images AND volumes for this project? type 'yes': " c
     [[ "$c" == "yes" ]] || { echo "aborted"; exit 1; }
+    just _pre-nuke
     {{compose}} down --volumes --remove-orphans {{args}}
     just rm
+    # catches volumes left by services no longer in the compose file
+    {{tool}} volume prune --force --filter "label=com.docker.compose.project={{project}}"
     echo "done"
+
+# (internal) hook run by `nuke` before anything is deleted, e.g. `just database-dump`
+_pre-nuke:
+    @true
 
 # Show container status
 ps:
