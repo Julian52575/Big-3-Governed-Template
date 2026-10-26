@@ -21,3 +21,6 @@ result-*
 # --- database backups (`just database-dump`) -------------------------
 db_backup_*.dump
 db_backup_*.sql
+
+# --- python (adapt.py) -------------------------------------------
+__pycache__/

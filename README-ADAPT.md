@@ -1,36 +1,39 @@
 # Adapting this template
 
 Everything to do after **Use this template** so the dev shell, CI, releases
-and governance work in your repository. **`adapt.py`** does most of it; this
-page says what each step changes, and what is left to do by hand.
+and governance work in your repository. **`adapt.py`** does most of it in one
+pass; this page says what each step changes, and what is left to do by hand.
 
 `adapt.py` uses only the Python standard library (3.9+) and is not part of
 the dev shell. Without a host `python3`, run it as
-`nix shell nixpkgs#python3 -c ./adapt.py`.
+`nix shell nixpkgs#python3 -c ./adapt.py`. The GitHub steps need
+[`gh`](https://cli.github.com/) authenticated as a repo admin; without it they
+are skipped and the rest still runs.
 
-```bash
-./adapt.py --help                      # every flag, with examples
-./adapt.py                             # 1. local steps, each one asks first
-git commit -sam "chore: adapt the template" && git push
-./adapt.py --gh-vars --governance      # 2. GitHub secrets and settings (gh)
-./adapt.py --workflow                  # 3. check everything; exit 1 on a failure
-```
+## Pick how much it asks
 
-**Commands are never run behind your back.** Each one that changes something
-(`git config`, `ssh-keygen`, `gh … set`, `apply-governance.sh`) is printed
-and only runs once you answer `y`. File edits (`--clean`, `--rename`, …) ask
-too.
+| You are… | Run | It asks | Commands |
+| -------- | --- | ------- | -------- |
+| **trusting**: provide only what it cannot find | `./adapt.py --trust` | only what it cannot detect: the conduct contact and secret values | run without asking |
+| **laid-back**: guided through everything | `./adapt.py` | every question, with the detected value as default | each one shown, runs only on `y` |
+| **doubtful**: see the commands, run the ones you want | `./adapt.py --print-cmd` (add `--dry-run` to edit no file either) | every question | none run; all printed again at the end, ready to copy |
+| **short on time**: everything in one pass | `./adapt.py --accept-cmd` | every question | run without asking |
 
-| Option | Effect |
-| ------ | ------ |
-| *(default)* | propose each command; run it only if you accept |
-| `--accept-cmd` | run every proposed command without asking |
-| `--print-cmd` | never run commands; print them for you to run yourself (secret values are never printed: `gh secret set` asks for them) |
-| `--yes` | take the default for every question (version, file edits); skip the personal ones (signing key, secret values); commands still follow the options above |
-| `--dry-run` | change no file and run no command; print what would change |
+Every mode runs the local steps, then the GitHub steps, then the final check.
+**Already-adapted fields are detected and skipped** — the owner/repo is
+replaced, the version is not `0.0.0`, the contact or SonarQube keys are
+filled, signing is configured, a secret is set, the ruleset is in place — so
+re-running is safe and only asks about what is left. Then review the file
+changes with `git diff` and commit them (`git commit -s`).
 
-Read-only queries (`git remote`, `gh … list`, `gh api` reads) run on their
-own; `--workflow` only reads.
+Other options: a single step flag (`--rename`, `--gh-vars`, …) runs only that
+step; `--yes` never asks and prints commands unless `--accept-cmd`;
+`--workflow` only checks. `./adapt.py --help` lists them all.
+
+**Commands that change something** (`git config`, `ssh-keygen`, `gh … set`,
+`apply-governance.sh`) are always printed before they run. Secret values are
+read without echo, passed to `gh` on stdin, and never printed. Read-only
+queries (`git remote`, `gh … list`, `gh api` reads) run on their own.
 
 ## 1. Local setup (every contributor)
 
@@ -48,32 +51,32 @@ own; `--workflow` only reads.
    `git config hooks.requireSignature false` in each clone.
 4. `just up -d` and open <http://localhost:8000>.
 
-## 2. Local steps: `./adapt.py`
+## 2. Local steps
 
-Run once, by whoever creates the repository. Each step also has its own flag.
+Each step also runs alone with its flag, and is skipped when already done.
 
-| Flag | Changes | If you skip it |
-| ---- | ------- | -------------- |
-| `--clean` | deletes `.readme-badges/*.json`, `.sast/openssf/SCORECARD.md`, `.sast/report/*` and `CHANGELOG.md`; the workflows regenerate them. The README badge stays empty until the first Scorecard PR is merged (see *Check it works*). | the template's old results are shown |
-| `--rename` | replaces `Julian52575/Big-3-Governed-Template` and `OWNER/REPO` (README badge, security-advisory link, …) with the `owner/repo` of `origin`, and sets `"package-name"` in `release-please-config.json` | the badge and vulnerability reports point at the template |
-| `--version` | asks for the project's current version (default `0.0.0`) and writes `.release-please-manifest.json` | the first release is computed from `0.0.0` |
-| `--contact` | fills `[INSERT CONTACT METHOD]` in `CODE_OF_CONDUCT.md` | nobody to report conduct issues to |
-| `--sonar` | fills the SonarQube Cloud keys in `.sast/sonar-project.properties` (only with `SONARQUBE_TOKEN`) | the SonarQube job fails once the token is set |
-| `--signing` | proposes the four `git config --local` signing commands as one step; see *Local setup* above | commits are rejected by the hook |
+| Flag | Changes | Skipped when | If you skip it |
+| ---- | ------- | ------------ | -------------- |
+| `--clean` | deletes `.readme-badges/*.json`, `.sast/openssf/SCORECARD.md`, `.sast/report/*` and `CHANGELOG.md`; the workflows regenerate them. The README badge stays empty until the first Scorecard PR is merged (see *Check it works*). | none of them is left | the template's old results are shown |
+| `--rename` | replaces `Julian52575/Big-3-Governed-Template` (also URL-encoded) and `OWNER/REPO` (README badge, security-advisory link, …) with the `owner/repo` of `origin`, and sets `"package-name"` in `release-please-config.json` | no reference is left | the badge and vulnerability reports point at the template |
+| `--version` | asks for the project's current version (default `0.0.0`) and writes `.release-please-manifest.json` | the version is not `0.0.0` | the first release is computed from `0.0.0` |
+| `--contact` | fills `[INSERT CONTACT METHOD]` in `CODE_OF_CONDUCT.md` | the placeholder is gone | nobody to report conduct issues to |
+| `--sonar` | fills the SonarQube Cloud keys in `.sast/sonar-project.properties`, defaulting to SonarQube's own (`<owner>`, `<owner>_<repo>`) | both keys are set | the SonarQube job fails once its token is set |
+| `--signing` | proposes the four `git config --local` signing commands as one step, then `gh ssh-key add`; defaults to your configured signing key, else `~/.ssh/id_ed25519.pub` | `commit.gpgsign` and `user.signingkey` are set | commits are rejected by the hook |
 
 Still by hand: the README's title, intro, *Customising* section and © line,
 and `"release-type"` in `release-please-config.json` (`simple` → e.g. `node`
 so `package.json` versions are bumped).
 
-## 3. GitHub: `./adapt.py --gh-vars --governance`
+## 3. GitHub steps: `--gh-vars`, `--governance`
 
-Needs [`gh`](https://cli.github.com/) authenticated as a repo admin, and the
-repository created on GitHub and pushed; otherwise both flags stop with an
-error before asking anything.
+The repository created by *Use this template* is enough; nothing has to be
+pushed first. When `gh` is missing, not logged in or cannot reach the
+repository, a full run skips these steps (and says why); `--gh-vars` or
+`--governance` alone stop with an error.
 
-`--gh-vars` walks through each Actions secret and variable below, shows
-whether it is already set, and saves what you type (secrets are read without
-echo and passed to `gh` on stdin). Blank input leaves a value as it is.
+`--gh-vars` asks for each Actions secret and variable below that is **not
+set yet**; set ones are left alone. Blank input skips one.
 
 | Name | Kind | Needed for | Scope | If unset |
 | ---- | ---- | ---------- | ----- | -------- |
