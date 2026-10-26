@@ -30,6 +30,7 @@ concurrency:
 env:
   BADGE_RESULTS_PATH: .readme-badges/scorecard-results.json
   BADGE_JSON_PATH: .readme-badges/scorecard-badge.json
+  SCORECARD_PATH: .sast/openssf/SCORECARD.md
 
 jobs:
   scorecard:
@@ -51,7 +52,7 @@ jobs:
           persist-credentials: false
 
       - name: Prepare results directory
-        run: mkdir -p "$(dirname "$BADGE_RESULTS_PATH")"
+        run: mkdir -p "$(dirname "$BADGE_RESULTS_PATH")" "$(dirname "$SCORECARD_PATH")"
 
       - name: Run Scorecard
         uses: ossf/scorecard-action@fa7117db83c52d787ae5a89f350999701505d78e # v2.5.0
@@ -78,7 +79,7 @@ jobs:
               | .[]
               | "| \(.name) | \(if .score < 0 then "n/a" else "\(.score)/10" end) | \((.reason // "") | gsub("[\r\n]+"; " ")) |"
             ' "$BADGE_RESULTS_PATH"
-          } > SCORECARD.md
+          } > "$SCORECARD_PATH"
           {
             echo "score=${score}"
             echo "date=${date}"
@@ -105,7 +106,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           # Rebuild the branch from the current main + this run's results.
           git switch -c openssf-update
-          git add "$BADGE_RESULTS_PATH" "$BADGE_JSON_PATH" SCORECARD.md
+          git add "$BADGE_RESULTS_PATH" "$BADGE_JSON_PATH" "$SCORECARD_PATH"
           if git diff --cached --quiet; then
             echo "no change since last run"
             echo "changed=false" >> "$GITHUB_OUTPUT"
@@ -138,7 +139,7 @@ jobs:
             {
               echo "## OpenSSF Scorecard — automated weekly audit"
               echo
-              cat SCORECARD.md
+              cat "$SCORECARD_PATH"
               echo
               if [ "${CHANGED}" = "true" ] && [ -n "${1:-}" ]; then
                 pr_title="chore(openssf): scorecard results ${DATE}"

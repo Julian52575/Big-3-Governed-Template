@@ -33,7 +33,7 @@ what breaks if you skip it. Steps marked *(optional)* switch on extra features.
 | `CODE_OF_CONDUCT.md` | `[INSERT CONTACT METHOD]` | nobody to report conduct issues to |
 | `release-please-config.json` | `"package-name": "REPO"`; `"release-type": "simple"` → e.g. `node` per package so `package.json` versions are bumped | releases work, but no package version file is updated |
 | `.release-please-manifest.json` | your current version, if not `0.0.0` | the first release is computed from `0.0.0` |
-| `.readme-badges/`, `SCORECARD.md` | delete; the Scorecard workflow regenerates them | the template's old results are shown |
+| `.readme-badges/`, `.sast/openssf/SCORECARD.md` | delete; the Scorecard workflow regenerates them | the template's old results are shown |
 
 ## 3. Repository settings
 

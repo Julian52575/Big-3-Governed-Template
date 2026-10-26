@@ -25,7 +25,7 @@ just               # list every command
 | <http://localhost:8080/> | Traefik dashboard (local only) |
 
 Making your own repo from it? Click **Use this template**, then work through
-**[Adapt-Readme.md](Adapt-Readme.md)**.
+**[README-ADAPT.md](README-ADAPT.md)**.
 
 ## The stack
 
@@ -153,11 +153,11 @@ backend/                               Express + Prisma placeholder (Jest, super
 .github/workflows/, .github/actions/   CI, release and audit workflows
 .github/rulesets/main.json             branch ruleset
 .github/ISSUE_TEMPLATE/, PULL_REQUEST_TEMPLATE.md
-.sast/                                 SAST config, report scripts, committed reports
+.sast/                                 SAST config, report scripts, committed reports, OpenSSF summary
 scripts/apply-governance.sh            applies the repository settings
 release-please-config.json, .release-please-manifest.json
 docs/Troubleshoot.md                   incident log
-Adapt-Readme.md, CONTRIBUTING.md, AGENTS.md
+README-ADAPT.md, CONTRIBUTING.md, AGENTS.md
 ```
 
 ## Customising

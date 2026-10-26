@@ -17,6 +17,7 @@ sonar-project.properties   SonarQube settings
 codeql-config.yml          CodeQL paths / query suite
 bin/*-report.sh            turn each tool's output into report/<tool>/
 report/<tool>/             summary.md, badge.svg (embeddable), raw JSON/SARIF
+openssf/SCORECARD.md       weekly OpenSSF Scorecard summary (openssf-scorecard.yml)
 ```
 
 ## How reports are committed
