@@ -17,3 +17,7 @@ result-*
 
 # --- SAST scratch (see .sast/README.md) --------------------------
 /.sast/codeql-results/
+
+# --- database backups (`just database-dump`) -------------------------
+db_backup_*.dump
+db_backup_*.sql

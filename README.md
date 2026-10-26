@@ -186,7 +186,7 @@ Entering the shell (`nix develop` / direnv):
 | `just attach <svc>` | attach this terminal to a service's live stdio (detach: Ctrl-C or ctrl-p ctrl-q) |
 | `just nuke` | stop stack + delete its volumes and local images (asks first; runs `_pre-nuke` first) |
 | `just lint-workflows` | actionlint + zizmor + schema check on `.github/`, as CI does |
-| `just database-dump` / `database-pipe <file>` | Postgres backup/restore example — commented out in the justfile until you add a `db` service |
+| `just database-dump` / `database-pipe <file>` | Postgres backup/restore in `pg_dump -Fc` format (`db_backup_<timestamp>.dump`, gitignored) — commented out until you add a `db` service |
 
 > `just up` runs `compose up` in the foreground. With `podman-compose`,
 > stopping an attached `up` with Ctrl-C can leave a runaway `podman start -a`

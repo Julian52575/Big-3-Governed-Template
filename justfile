@@ -99,27 +99,32 @@ lint-workflows:
     check-jsonschema --builtin-schema vendor.github-workflows .github/workflows/*.yml
 
 #### Database (example)
-# Postgres backup/restore, for a compose service named `db` with POSTGRES_USER
-# and POSTGRES_DB in .env. Uncomment once you add one, and make `_pre-nuke`
-# run `just database-dump` so `nuke` never deletes data without a backup.
+# Postgres backup/restore in pg_dump's custom format (compressed, restorable
+# with pg_restore), for a compose service named `db` with POSTGRES_USER and
+# POSTGRES_DB in .env. Uncomment once you add one, and make `_pre-nuke` run
+# `just database-dump` so `nuke` never deletes data without a backup.
 
-# # Dump the whole database to db_backup_<timestamp>.sql
+# # Dump the database to db_backup_<timestamp>.dump
 # database-dump:
 #     #!/usr/bin/env bash
 #     set -euo pipefail
 #     source <(just _ensure-db)
-#     out="db_backup_$(date +%Y%m%d_%H%M%S).sql"
-#     {{tool}} exec "$cid" pg_dumpall -U "${POSTGRES_USER}" > "$out"
+#     # computed once, so the file written and the name printed always match
+#     out="db_backup_$(date +%Y%m%d_%H%M%S).dump"
+#     # via a temp file: a failed pg_dump must not leave an empty "backup"
+#     {{tool}} exec "$cid" pg_dump -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -Fc > "$out.part" \
+#         || { rm -f "$out.part"; exit 1; }
+#     mv "$out.part" "$out"
 #     echo "Dumped database into $out"
 #
-# # Pipe a .sql file into the database: `just database-pipe db_backup_x.sql`
+# # Restore a dump, replacing what it contains: `just database-pipe db_backup_x.dump`
 # database-pipe file:
 #     #!/usr/bin/env bash
 #     set -euo pipefail
 #     [[ -f "{{file}}" ]] || { echo "{{file}} not found" >&2; exit 1; }
 #     source <(just _ensure-db)
-#     {{tool}} exec -i "$cid" psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" < "{{file}}"
-#     echo "Piped {{file}} into the database"
+#     {{tool}} exec -i "$cid" pg_restore -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" --clean --if-exists < "{{file}}"
+#     echo "Restored {{file}} into the database"
 #
 # # (internal) start `db` if it is down, wait for it, and print `cid=<id>`.
 # # A db started here is stopped again when the calling recipe exits.
