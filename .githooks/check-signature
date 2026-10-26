@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# Require a sign-off (`Signed-off-by:` trailer) and commit signing
+# (`git commit -sS`). On by default; a repo that does not want it opts out with
+#   git config hooks.requireSignature false
+# Local feedback only -- `--no-verify` skips it; the enforced gate is the
+# ruleset's `required_signatures` rule. The commit does not exist yet when
+# commit-msg runs, so only the signing *config* can be checked.
+set -euo pipefail
+
+[ "$(git config --get hooks.requireSignature || true)" = "false" ] && exit 0
+
+header="$(grep -vE '^[[:space:]]*(#|$)' "$1" | head -n1 || true)"
+case "$header" in
+  "Merge "* | "Revert "* | fixup!* | squash!* | "") exit 0 ;;
+esac
+
+if [ "$(git config --get commit.gpgsign || true)" != "true" ] ||
+  [ -z "$(git config --get user.signingkey || true)" ]; then
+  {
+    echo "✗ commit rejected: commits must be signed (commit.gpgsign and user.signingkey)"
+    echo "  enable SSH signing once:"
+    echo "    git config --global gpg.format ssh"
+    echo "    git config --global user.signingkey ~/.ssh/id_ed25519.pub"
+    echo "    git config --global commit.gpgsign true"
+    echo "  then add the key on GitHub as a *Signing Key*."
+  } >&2
+  exit 1
+fi
+
+if ! grep -qiE '^Signed-off-by: .+ <.+>$' "$1"; then
+  {
+    echo "✗ commit message rejected: missing 'Signed-off-by' line"
+    echo "  sign off with:   git commit -s"
+    echo "  already typed?   git commit --amend -s --no-edit"
+    echo "  always sign off: git config --global alias.ci 'commit -s'"
+  } >&2
+  exit 1
+fi

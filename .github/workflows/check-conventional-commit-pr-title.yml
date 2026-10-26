@@ -2,17 +2,21 @@ name: check-conventional-commit-pr-title
 
 # Validate that the pull-request title is a Conventional Commit.
 # rule-for-rule identical to the local hook .githooks/check-conventional-commit-msg.
+#
+# Uses `pull_request` (not `pull_request_target`): it never checks out PR code
+# and needs no secrets, so the privileged trigger buys nothing but risk.
 
 on:
-  pull_request_target:
+  pull_request:
     types: [opened, edited, synchronize, reopened, ready_for_review]
 
 permissions:
   pull-requests: read
 
-# Cancel superseded runs for the same PR.
+# Cancel superseded runs for the same PR. `event_name` keeps an `edited` run
+# from cancelling a concurrent `opened` / `synchronize` one.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -20,7 +24,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: amannn/action-semantic-pull-request@0723387faaf9b38adef4775cd42cfd5155ed6017 # v5.5.3
+      - uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
+
+      - uses: amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50 # v6.1.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:

@@ -1,19 +1,26 @@
-# Demo stack: a Traefik reverse proxy in front of a static front-end and a
-# JSON API.
+# Demo stack: a Traefik reverse proxy in front of a React frontend, a
+# Node.js backend and Postgres.
 #
-#   http://localhost:8000/           -> web      (nginx, static page in ./web)
-#   http://localhost:8000/api/...    -> backend  (python JSON API, built from ./api)
+#   http://localhost:8000/           -> frontend (React + Vite dev server)
+#   http://localhost:8000/api/...    -> backend  (Express + Prisma, /api stripped)
 #   http://localhost:8080/           -> Traefik dashboard (insecure, local only)
 #
 # Traefik discovers routes from each container's `traefik.*` labels through
 # the Podman API socket that the Nix dev shell exposes as $DOCKER_SOCK.
-# `just up` builds the web + backend images on first run; after editing the
-# ./web or ./api folder run `just rm; just up` to force a clean rebuild
-# (podman-compose's `--build` often misses a changed COPY).
+#
+# This file is for local development: frontend and backend build from their
+# Dev.Dockerfile and bind-mount their source for hot reload; node_modules
+# lives in a named volume (<service>-node-modules) so the host's copy never
+# shadows the image's; `just rebuild <service>` resets it.
+# Release images build from each folder's Dockerfile. After changing a
+# Dev.Dockerfile or package.json, run `just rebuild <service>`. Healthchecks
+# poll every second so `up --wait` and `depends_on` return as soon as a
+# service is ready. Write them as CMD-SHELL strings: podman-compose re-quotes
+# CMD arrays and breaks inline code.
 
 services:
   proxy:
-    image: docker.io/library/traefik:v3.3
+    image: docker.io/library/traefik:v3.7
     command:
       - --providers.docker=true
       - --providers.docker.endpoint=unix:///var/run/docker.sock
@@ -22,28 +29,55 @@ services:
       - --api.dashboard=true
       - --api.insecure=true        # dashboard on :8080 with no auth -- dev only
       - --accesslog=true
+      - --ping=true                 # /ping on the dashboard's `traefik` entrypoint, for the healthcheck
+    # Published on 127.0.0.1 only: without an address, Docker and Podman
+    # publish on every interface, which on a server exposes the stack -- and
+    # the unauthenticated dashboard -- to the network. Set PROXY_BIND=0.0.0.0
+    # to share the app on the LAN; the dashboard stays local.
     ports:
-      - "${PROXY_PORT:-8000}:80"
-      - "${PROXY_DASHBOARD_PORT:-8080}:8080"
+      - "${PROXY_BIND:-127.0.0.1}:${PROXY_PORT:-8000}:80"
+      - "127.0.0.1:${PROXY_DASHBOARD_PORT:-8080}:8080"
     volumes:
       - "${DOCKER_SOCK:-/var/run/docker.sock}:/var/run/docker.sock:ro"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 1s
+      timeout: 1s
+      retries: 10
+      start_period: 1s
 
-  web:
-    build:
-      context: ./web
-    labels:
-      - traefik.enable=true
-      - traefik.http.routers.web.rule=PathPrefix(`/`)
-      - traefik.http.routers.web.priority=1        # catch-all: lowest priority
-      - traefik.http.services.web.loadbalancer.server.port=80
+  db:
+    image: docker.io/library/postgres:18-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-app}
+    volumes:
+      # Postgres 18 images keep data in a versioned subdirectory of this path.
+      - db-data:/var/lib/postgresql
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 1s
+      timeout: 1s
+      retries: 10
+      start_period: 1s
 
   backend:
     build:
-      context: ./api
+      context: ./backend
+      dockerfile: Dev.Dockerfile
+    volumes:
+      - ./backend:/app:z
+      - backend-node-modules:/app/node_modules
     environment:
-      PORT: "8000"
+      DATABASE_URL: postgresql://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-app}?schema=public
+    depends_on:
+      db:
+        condition: service_healthy
+      proxy:
+        condition: service_started
     labels:
       # router/service name is `backend`, not `api` -- `api` is reserved by
       # Traefik's own dashboard router (`--api.insecure`).
@@ -51,11 +85,39 @@ services:
       - traefik.http.routers.backend.rule=PathPrefix(`/api`)
       - traefik.http.routers.backend.middlewares=backend-strip
       - traefik.http.middlewares.backend-strip.stripprefix.prefixes=/api
-      - traefik.http.services.backend.loadbalancer.server.port=8000
+      - traefik.http.services.backend.loadbalancer.server.port=3000
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')\""]
-      interval: 10s
-      timeout: 3s
-      retries: 3
-      start_period: 5s
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/health').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))\""]
+      interval: 1s
+      timeout: 2s
+      retries: 30
+      start_period: 1s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dev.Dockerfile
+    volumes:
+      - ./frontend:/app:z
+      - frontend-node-modules:/app/node_modules
+    depends_on:
+      proxy:
+        condition: service_started
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.frontend.rule=PathPrefix(`/`)
+      - traefik.http.routers.frontend.priority=1        # catch-all: lowest priority
+      - traefik.http.services.frontend.loadbalancer.server.port=3000
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))\""]
+      interval: 1s
+      timeout: 2s
+      retries: 30
+      start_period: 1s
+
+volumes:
+  db-data:
+  backend-node-modules:
+  frontend-node-modules:

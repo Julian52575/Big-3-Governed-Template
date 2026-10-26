@@ -39,17 +39,22 @@ jobs:
       contents: write # force-push the results commit to `openssf-update`
       issues: write # open / comment the findings issue
     steps:
+      - uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
+
       - name: Check out main
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: main
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Prepare results directory
         run: mkdir -p "$(dirname "$BADGE_RESULTS_PATH")"
 
       - name: Run Scorecard
-        uses: ossf/scorecard-action@55891bbd73f2425e97637d96e306fc9d491d0b21 # v2.4.4
+        uses: ossf/scorecard-action@fa7117db83c52d787ae5a89f350999701505d78e # v2.5.0
         with:
           results_file: ${{ env.BADGE_RESULTS_PATH }}
           results_format: json
@@ -91,6 +96,9 @@ jobs:
 
       - name: Commit results to openssf-update
         id: commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DATE: ${{ steps.summary.outputs.date }}
         run: |
           set -euo pipefail
           git config user.name  "github-actions[bot]"
@@ -102,8 +110,9 @@ jobs:
             echo "no change since last run"
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
-            git commit -m "chore(openssf): scorecard results ${{ steps.summary.outputs.date }}"
-            git push --force origin openssf-update
+            git commit -m "chore(openssf): scorecard results ${DATE}"
+            # Token only for this push, never written to .git/config.
+            git push --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" openssf-update
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
 

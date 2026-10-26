@@ -1,0 +1,8 @@
+# Each service is its own build context, so the root .containerignore
+# does not apply here.
+node_modules
+coverage
+.env
+Dev.Dockerfile
+.dockerignore
+*.md

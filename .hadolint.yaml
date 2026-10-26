@@ -1,0 +1,6 @@
+# hadolint config, read by the `dockerfile-lint` job in .github/workflows/ci.yml.
+ignored:
+  # DL3008 (pin apt package versions): Debian only serves the latest build of
+  # a package, so a pinned version breaks on every security update. The base
+  # image tag fixes the package set.
+  - DL3008

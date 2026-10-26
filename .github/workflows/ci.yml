@@ -3,6 +3,13 @@ name: ci
 on:
   push:
     branches: [main]
+    # Only on push: a required check filtered out of a PR would hang as "expected".
+    paths-ignore:
+      - "*.md"
+      - ".gitignore"
+      - ".github/ISSUE_TEMPLATE/**"
+      - ".github/rulesets/**"
+      - ".sast/report/**"
   pull_request:
   workflow_dispatch: # allow a manual re-run from the Actions tab
 
@@ -23,19 +30,23 @@ jobs:
     env:
       PODMAN_NO_SOCKET: "1" # don't spawn a Podman API socket in CI
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # No git writes in this job; do not leave the token in .git/config.
           persist-credentials: false
 
       # Local composite action: check out first, then it installs Nix.
       # `nix flake check` below already evaluates the flake, so skip the warm.
-      - uses: ./.github/actions/setup-devshell
+      - uses: ./.github/actions/setup-devshell # zizmor: ignore[self-repository] -- actionlint rejects `$/`
         with:
           warm: "false"
 
       - name: Check the flake evaluates
-        run: nix flake check --no-build
+        run: nix flake check --no-build --all-systems
 
       - name: Enter the dev shell and sanity-check tooling
         run: |
@@ -45,17 +56,309 @@ jobs:
             podman-compose -f docker-compose.yml config >/dev/null
           '
 
+  # Every Dockerfile / Containerfile tracked in the repo -- a new one is
+  # picked up without touching this workflow. Mounts the repo so hadolint
+  # reads a root .hadolint.yaml if one exists.
+  dockerfile-lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Lint every Dockerfile with hadolint
+        run: |
+          set -uo pipefail
+          mapfile -t files < <(git ls-files -- \
+            '*Dockerfile' '*Dockerfile.*' '*Containerfile' '*Containerfile.*')
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "no Dockerfile found"
+            exit 0
+          fi
+
+          failed=0
+          for f in "${files[@]}"; do
+            echo "--- $f"
+            # hadolint v2.12.0
+            if docker run --rm -v "$PWD:/repo:ro" -w /repo \
+              docker.io/hadolint/hadolint@sha256:30a8fd2e785ab6176eed53f74769e04f125afb2f74a6c52aef7d463583b6d45e \
+              hadolint "$f"; then
+              echo "ok    $f"
+            else
+              echo "::error file=$f::hadolint reported issues in $f"
+              failed=1
+            fi
+          done
+          exit "$failed"
+
+  # The compose file parses and interpolates cleanly with the example .env.
+  compose-lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Load .env
+        run: cp .env.example .env
+
+      - name: Validate docker-compose.yml
+        run: docker compose config --quiet
+
+  # Every workflow under .github/workflows, including a shellcheck pass on each
+  # `run:` script (bundled in the actionlint image).
+  workflow-lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Lint with actionlint 1.7.12
+        run: >-
+          docker run --rm -v "$PWD:/repo:ro" -w /repo
+          docker.io/rhysd/actionlint@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667
+          -color
+
+  # Security audit of every workflow and action; findings show as PR annotations.
+  # Keep the version in sync with nix/tools.nix.
+  zizmor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Audit workflows with zizmor
+        env:
+          GH_TOKEN: ${{ github.token }} # online audits (impostor commits, known-vulnerable actions)
+        run: pipx run zizmor==1.31.1 --format github .github/
+
+  # Software-composition analysis of THIS branch: osv-scanner finds every
+  # lockfile in the repo (npm, pip, go, cargo, maven, ...) and checks it
+  # against the OSV database, so it needs no per-language setup.
+  #
+  # Gate: fails on any Critical or High advisory (CVSS >= 7), on 5 or more
+  # Moderate+Low, or when the scan cannot complete -- an unknown posture is not
+  # a passing one. No lockfile at all passes. Advisories without a CVSS score
+  # count as Moderate. Counts and advisories land in the job summary and the
+  # raw report uploads as an artifact, pass or fail.
+  dependencies-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Scan lockfiles with osv-scanner 2.7.0
+        run: |
+          set -uo pipefail
+          mkdir -p dependency-audit
+          raw=dependency-audit/osv.json
+
+          rc=0
+          docker run --rm -v "$PWD:/repo:ro" -w /repo \
+            ghcr.io/google/osv-scanner@sha256:4f3b7e2c64b9d38a5febc5a7e4a3dfef1d1362f726dea7a2ef4762b46469fcd0 \
+            scan source -r --format json . > "$raw" || rc=$?
+          # 0 = clean, 1 = advisories found, 128 = no lockfile; anything else failed.
+          case "$rc" in
+            128)
+              echo "### Dependency audit: no lockfile found -- nothing to scan" >> "$GITHUB_STEP_SUMMARY"
+              exit 0 ;;
+            0 | 1) ;;
+            *)
+              echo "::error::osv-scanner failed (exit $rc) -- an unknown posture cannot clear the gate"
+              exit 1 ;;
+          esac
+
+          # One row per advisory group: severity bucket, package, lockfile, ids.
+          jq -r '
+            .results[]? | .source.path as $src | .packages[]? | .package as $p | .groups[]?
+            | (.max_severity // "" | if . == "" then 5 else tonumber end) as $s
+            | [ (if $s >= 9 then "critical" elif $s >= 7 then "high" elif $s >= 4 then "moderate" else "low" end),
+                "\($p.ecosystem)/\($p.name)@\($p.version)", ($src | sub("^/repo/"; "")), (.ids | join(" ")) ]
+            | @tsv' "$raw" > dependency-audit/rows.tsv
+
+          count() { awk -F'\t' -v k="$1" '$1 == k' dependency-audit/rows.tsv | wc -l; }
+          crit=$(count critical); high=$(count high); mod=$(count moderate); low=$(count low)
+          ch=$((crit + high)); ml=$((mod + low))
+
+          {
+            echo "### Dependency audit (osv-scanner)"
+            echo
+            echo "| Critical | High | Moderate | Low |"
+            echo "| --- | --- | --- | --- |"
+            echo "| $crit | $high | $mod | $low |"
+            echo
+            echo "**Gate:** any Critical or High fails; 5 or more Moderate+Low fails."
+            echo
+            echo "<details><summary>Advisories</summary>"
+            echo
+            echo "| Severity | Package | Lockfile | Advisory |"
+            echo "| --- | --- | --- | --- |"
+            awk -F'\t' '{ printf "| %s | `%s` | `%s` | %s |\n", $1, $2, $3, $4 }' dependency-audit/rows.tsv
+            echo
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          fail=0
+          if [ "$ch" -gt 0 ]; then
+            echo "::error::${crit} critical + ${high} high dependency advisories (allowed: 0) -- see the job summary"
+            fail=1
+          fi
+          if [ "$ml" -ge 5 ]; then
+            echo "::error::${ml} moderate + low dependency advisories (allowed: fewer than 5) -- see the job summary"
+            fail=1
+          fi
+          exit "$fail"
+
+      - name: Upload the raw audit report
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dependency-audit
+          path: dependency-audit
+          if-no-files-found: ignore
+
+  # Lint, test and build each Node.js service in its own folder.
+  node:
+    name: node (${{ matrix.service }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [backend, frontend] # CUSTOMISE: one entry per Node.js service
+    defaults:
+      run:
+        working-directory: ${{ matrix.service }}
+    steps:
+      - uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ${{ matrix.service }}/package-lock.json
+
+      - run: npm ci
+      - run: npm run lint
+      - name: Generate the Prisma client
+        if: hashFiles(format('{0}/prisma/schema.prisma', matrix.service)) != ''
+        run: npx prisma generate
+      - run: npm test
+      - name: Build
+        if: matrix.service == 'frontend'
+        run: npm run build
+
+  # How the services work together: boots the whole compose stack and calls
+  # every route through the proxy. CUSTOMISE the checks when you replace the
+  # example services.
+  stack:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PROXY: http://127.0.0.1:8000
+      DASHBOARD: http://127.0.0.1:8080
+    steps:
+      - uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Load .env
+        run: cp .env.example .env
+
+      - name: Build and start the stack, waiting for healthchecks
+        run: docker compose up -d --build --wait --wait-timeout 300
+
+      - name: Call every service through the proxy
+        run: |
+          set -euo pipefail
+          # Traefik picks up routes asynchronously; retry before failing. $2 must
+          # appear in the body, or an unrouted /api would pass on the
+          # frontend's catch-all HTML.
+          check() {
+            for _ in $(seq 1 30); do
+              curl -fsS "$1" | grep -qF -- "$2" && { echo "ok    $1"; return 0; }
+              sleep 1
+            done
+            echo "::error::$1 did not answer with '$2'"
+            return 1
+          }
+          check "$PROXY/" '<div id="root">'
+          check "$PROXY/api/health" '"status":"ok"'
+          check "$PROXY/api/items" '[' # reaches Postgres through Prisma
+          check "$DASHBOARD/api/rawdata" '"routers"'
+
+      - name: Show logs on failure
+        if: failure()
+        run: docker compose logs --no-color
+
+      - name: Tear down
+        if: always()
+        run: docker compose down --volumes --remove-orphans
+
   # Single stable check for the branch ruleset to require.
   # Add a job to `needs` here to make it mandatory to the branch ruleset.
   ci-required:
     if: always()
-    needs: [devshell]
+    needs:
+      - devshell
+      - dockerfile-lint
+      - compose-lint
+      - workflow-lint
+      - zizmor
+      - node
+      - dependencies-audit
+      - stack
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
+
       - name: Every required job passed
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
         run: |
-          if printf '%s\n' '${{ join(needs.*.result, ' ') }}' | grep -Eqw 'failure|cancelled'; then
-            echo "a required job did not succeed: ${{ join(needs.*.result, ', ') }}"
+          # Anything but `success` (failure, cancelled, skipped) fails the gate.
+          if printf '%s\n' "$RESULTS" | tr ' ' '\n' | grep -vqx 'success'; then
+            echo "a required job did not succeed: $RESULTS"
             exit 1
           fi
