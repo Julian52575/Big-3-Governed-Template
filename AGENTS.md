@@ -35,7 +35,8 @@ source of truth. The hard rules:
     `ci.yml`, never by editing `.github/rulesets/main.json`.
   - Run `just lint-workflows` (actionlint, zizmor, schema) before committing.
 - **Tooling** comes from the Nix dev shell (`nix develop`). Add a tool to
-  `flake.nix`, or to `nix/tools.nix` when nixpkgs lags the version CI uses.
+  its own `nix/<tool>.nix`, pinned to an exact upstream release, and list it
+  in `nix/tools.nix`; only the Podman stack comes straight from nixpkgs.
 - **No OS-specific scripts**: new helper scripts are Python 3 (standard
   library only, like `adapt.py`), not shell, so they run on Linux, macOS and
   Windows. `justfile` recipes stay one-liners that call them.

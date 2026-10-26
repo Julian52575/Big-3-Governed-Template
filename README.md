@@ -215,7 +215,7 @@ machine, swap it for [Cachix](https://docs.cachix.org/continuous-integration-set
 ## Layout
 
 ```
-flake.nix, flake.lock, nix/tools.nix   dev shell and pinned tools
+flake.nix, flake.lock, nix/            dev shell; one file per pinned tool
 justfile                               project commands
 docker-compose.yml                     Traefik proxy + frontend + backend + Postgres
 frontend/                              React + Vite placeholder (Vitest, oxlint)
@@ -236,8 +236,11 @@ CONTRIBUTING.md, AGENTS.md
 
 ## Customising
 
-- **Tools:** add them to `packages` in `flake.nix` (or `nix/tools.nix` for
-  versions nixpkgs lacks). Bump nixpkgs by editing `nixpkgs.url`, then
+- **Tools:** every dev-shell tool except the Podman stack is pinned to its
+  latest upstream release in its own `nix/<tool>.nix` (official binaries
+  where they exist, else nixpkgs rebuilt from the release source) and listed
+  in `nix/tools.nix`; each file says how to bump it. Add a tool the same way.
+  The Podman stack follows nixpkgs: bump it by editing `nixpkgs.url`, then
   `nix flake update`.
 - **Services:** `frontend` and `backend` are placeholders; build on them or
   replace them. Each has a release `Dockerfile` and a `Dev.Dockerfile` whose

@@ -159,8 +159,8 @@ rules in `AGENTS.md` and run `just lint-workflows`.
   on the network.
 - Put new environment variables in `.env.example`; secrets get a
   `change-me-…` value so the dev shell generates them.
-- Add tools to `packages` in `flake.nix`, or to `nix/tools.nix` when you need
-  a version nixpkgs does not have.
+- Add a tool as its own `nix/<tool>.nix` and list it in `nix/tools.nix`
+  (see the existing files for the pattern and how to bump them).
 - The `db` service is Postgres; change its schema in
   `backend/prisma/schema.prisma`. Without a database, drop `db`, Prisma and
   the `database-*` recipes, and set `_pre-nuke` back to `@true`.
