@@ -21,7 +21,6 @@
             openssl # the shellHook fills `change-me-*` secrets in .env
             podman-compose
             curl # the shellHook pings the podman API socket with it
-            nodejs_24 # npm for frontend/ and backend/
             # workflow linting (`just lint-workflows`)
             actionlint
             shellcheck # actionlint uses it to lint `run:` scripts

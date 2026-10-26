@@ -54,12 +54,12 @@ Making your own repo from it? Click **Use this template**, then run
   - **skip the flake** and install the tools system-wide:
     [Git for Windows](https://gitforwindows.org/) (its bash runs the
     `justfile` and git hooks), [just](https://just.systems/man/en/packages.html),
-    [Podman Desktop](https://podman-desktop.io/) or
-    [Docker Desktop](https://docs.docker.com/desktop/setup/install/windows-install/),
-    and [Node.js 24](https://nodejs.org/). Then `cp .env.example .env`, replace
-    each `change-me-*` value yourself, and run
-    `git config core.hooksPath .githooks`. `just` uses Podman, or Docker when
-    Podman is missing.
+    and [Podman Desktop](https://podman-desktop.io/) or
+    [Docker Desktop](https://docs.docker.com/desktop/setup/install/windows-install/).
+    [Node.js 24](https://nodejs.org/) is optional: the services run their own
+    Node in their containers; install it only to run `npm` outside them.
+    Then run the commands in [What the shell does](#what-the-shell-does)
+    yourself. `just` uses Podman, or Docker when Podman is missing.
 
 Ubuntu in two commands:
 
@@ -73,19 +73,79 @@ and `direnv allow` load the shell automatically on `cd`.
 
 ### What the shell does
 
-1. Creates `.env` from `.env.example` and replaces every `change-me-*` value
-   with a random secret (once).
-2. Routes every container command through rootless Podman and the pinned
-   `podman-compose`.
-3. Points Podman at the in-repo config in `.config/podman/` — nothing under
-   `/etc` or `~` is changed, except a `policy.json` symlink if none exists.
-4. Keeps container storage in `./.containers/`, or under
-   `~/.cache/podman-storage/` when the repo sits on a network filesystem
-   (WSL2 drvfs, NFS, …). Override with `PODMAN_STORAGE_DIR`.
-5. Exposes a Docker-compatible API socket as `DOCKER_HOST` (needed by
-   Traefik). Skip with `PODMAN_NO_SOCKET=1`.
-6. Enables the git hooks in `.githooks/` (Conventional Commit + signed-off,
-   signed commits — see [CONTRIBUTING.md](CONTRIBUTING.md)).
+`nix develop` does the steps below on every entry. Without Nix (Windows
+without WSL, or tools installed system-wide), run the command under each
+step once from the repo root instead; they are plain bash (Git Bash on
+Windows).
+
+1. **Puts the pinned tools on `PATH`**: `just`, `podman`, `podman-compose`,
+   `jq`, `openssl`, `curl`, `actionlint`, `shellcheck`,
+   `check-jsonschema`, `zizmor`, `pin-github-action` (see `flake.nix` and
+   `nix/tools.nix`). Without Nix, install what you use with your package
+   manager; to run the stack you only need `just` and Podman (with
+   `podman-compose`) or Docker.
+
+2. **Creates `.env`** from `.env.example`, adds variables that are new in
+   `.env.example` to an existing `.env`, and replaces every `change-me-*`
+   value with a random secret, once. `just` loads `.env` itself
+   (`set dotenv-load`).
+
+   ```bash
+   [ -e .env ] || cp .env.example .env
+   for key in $(sed -nE 's/^([A-Za-z_][A-Za-z0-9_]*)=.*/\1/p' .env.example); do
+     grep -qE "^$key=" .env || grep -E "^$key=" .env.example >> .env
+   done
+   for key in $(sed -nE 's/^([A-Za-z_][A-Za-z0-9_]*)="?change-me-.*/\1/p' .env); do
+     sed -i.bak "s|^$key=.*|$key=$(openssl rand -hex 32)|" .env && rm -f .env.bak
+   done
+   ```
+
+3. **Makes `podman compose` use `podman-compose`**, never a host
+   `docker-compose`. Only matters with Podman:
+
+   ```bash
+   export PODMAN_COMPOSE_PROVIDER="$(command -v podman-compose)" PODMAN_COMPOSE_WARNING_LOGS=false
+   ```
+
+4. **Points Podman at the in-repo config** in `.config/podman/` (crun
+   runtime, `docker.io` short names, image policy), changing nothing under
+   `/etc` or `~` except a `policy.json` symlink when none exists. Optional
+   without Nix: your system's Podman config works too.
+
+   ```bash
+   export CONTAINERS_CONF="$PWD/.config/podman/containers.conf"
+   export CONTAINERS_REGISTRIES_CONF="$PWD/.config/podman/registries.conf"
+   [ -e ~/.config/containers/policy.json ] || {
+     mkdir -p ~/.config/containers
+     ln -s "$PWD/.config/podman/policy.json" ~/.config/containers/policy.json
+   }
+   ```
+
+5. **Keeps container storage in `./.containers/`**, or under
+   `~/.cache/podman-storage/<project>/` when the repo sits on a network
+   filesystem (WSL2 drvfs, NFS, …); override with `PODMAN_STORAGE_DIR`.
+   Optional without Nix: Podman's default storage works too. To keep it in
+   the repo:
+
+   ```bash
+   mkdir -p .containers
+   printf '[storage]\ndriver = "overlay"\nrunroot = "%s/run"\ngraphroot = "%s/storage"\n' \
+     "$PWD/.containers" "$PWD/.containers" > .config/podman/storage.conf
+   export CONTAINERS_STORAGE_CONF="$PWD/.config/podman/storage.conf"
+   ```
+
+6. **Exposes a Docker-compatible API socket** as `DOCKER_HOST` /
+   `DOCKER_SOCK`, which Traefik reads to discover services. Skip it with
+   `PODMAN_NO_SOCKET=1`. Without Nix, Docker already provides one; with
+   Podman, enable its socket the way your system documents
+   ([Podman socket](https://docs.podman.io/en/latest/markdown/podman-system-service.1.html)).
+
+7. **Enables the git hooks** in `.githooks/` (Conventional Commit, signed
+   and signed-off commits — see [CONTRIBUTING.md](CONTRIBUTING.md)):
+
+   ```bash
+   git config --local core.hooksPath .githooks
+   ```
 
 ### Just commands
 
