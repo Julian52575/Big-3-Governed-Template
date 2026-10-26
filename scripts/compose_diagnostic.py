@@ -60,7 +60,7 @@ class Report:
             parts.append(f"`$ {cmd}`")
         if body:
             parts.append("```\n" + self.mask(body.rstrip()) + "\n```")
-        self.sections.append("\n\n".join(parts))
+        self.sections.append("\n".join(parts))
 
     def summary(self) -> str:
         if not self.findings:
@@ -68,7 +68,7 @@ class Report:
         return "\n".join(f"- {f}" for f in self.findings)
 
     def render(self, header: str) -> str:
-        return f"{header}\n\n## What looks wrong\n\n{self.summary()}\n\n" + "\n\n".join(self.sections) + "\n"
+        return f"{header}\n## What looks wrong\n{self.summary()}\n" + "\n".join(self.sections) + "\n"
 
 
 def run(cmd: list[str], timeout: int = 60) -> tuple[int, str]:
@@ -239,7 +239,7 @@ def check_resources(rep: Report, tool: str, root: Path) -> None:
     if pct >= 90:
         rep.problem(f"The disk holding the project is {pct}% full: images and builds fail when it fills up. "
                     f"`{tool} system prune` frees unused images.")
-    rep.section("Disk", f"{root}: {pct}% used, {usage.free // 2**30} GiB free\n\n" + run([tool, "system", "df"])[1],
+    rep.section("Disk", f"{root}: {pct}% used, {usage.free // 2**30} GiB free\n" + run([tool, "system", "df"])[1],
                 f"{tool} system df")
     rep.section("Volumes", run([tool, "volume", "ls"])[1], f"{tool} volume ls")
 
