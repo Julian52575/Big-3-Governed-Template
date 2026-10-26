@@ -265,6 +265,12 @@ Requests* in the UI):
 The script treats the security calls as best-effort — on a plan that doesn't
 include one it prints a warning and moves on.
 
+**Optional: require signed commits.** Add `{ "type": "required_signatures" }`
+to the `rules` array of `.github/rulesets/main.json` and re-run the script.
+Pair it with the local hook: each contributor runs
+`git config hooks.requireSignature true` so `.githooks/check-signature`
+rejects a commit before it is made (see CONTRIBUTING.md → Commit hooks).
+
 #### BONUS: Org-level (can't be scripted per-repo)
 
 Set these once for the organisation, not the repo:  
@@ -392,6 +398,7 @@ docs/Troubleshoot.md      incident log: error, cause, solution
 .containerignore          build-context excludes (.dockerignore -> symlink)
 .githooks/commit-msg           dispatcher git runs; execs the check script below
 .githooks/check-conventional-commit-msg   local Conventional Commits check (enabled by the shellHook)
+.githooks/check-signature  opt-in sign-off + signing check (`git config hooks.requireSignature true`)
 .github/actions/setup-devshell/   composite action: checkout-then-install-Nix, shared by workflows
 .github/workflows/ci.yml       flake eval + compose lint; `ci-required` aggregator gate
 .github/workflows/check-conventional-commit-pr-title.yml  PR title must be a Conventional Commit
