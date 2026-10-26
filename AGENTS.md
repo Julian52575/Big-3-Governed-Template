@@ -5,6 +5,8 @@ changing anything; they are the source of truth. The hard rules:
 
 - **Conventional Commits** for every commit and PR title:
   `<type>[(scope)][!]: description`, lower-case subject, no trailing period.
+- **Signed, signed-off commits**: `git commit -s` with signing configured;
+  the `commit-msg` hook rejects anything else.
 - **Every PR closes an issue** (`Closes #NNN` in the body). Branch from `main`;
   never push to `main`.
 - **Workflows** (`.github/`):

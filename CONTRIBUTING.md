@@ -72,19 +72,22 @@ When adding a label, give it a description and document it here in the same PR.
 
 ### Commit hooks
 
-`nix develop` points `core.hooksPath` at `.githooks/`. `commit-msg` checks the
-Conventional Commits format and, when the repo opts in, signing:
+`nix develop` points `core.hooksPath` at `.githooks/`. `commit-msg` rejects a
+commit unless its message is a Conventional Commit, **carries a
+`Signed-off-by:` trailer** (`git commit -s`) and signing is configured. Set
+up SSH signing once:
 
 ```bash
-git config hooks.requireSignature true   # opt in (per clone)
 git config --global gpg.format ssh
 git config --global user.signingkey ~/.ssh/id_ed25519.pub
 git config --global commit.gpgsign true
-git commit -s ...                         # adds the Signed-off-by trailer
+git config --global alias.ci 'commit -s'   # optional: `git ci` always signs off
 ```
 
-Add the same key on GitHub as a **Signing Key**. `--no-verify` skips the hooks;
-the enforced gates are in CI and the branch ruleset.
+Add the same key on GitHub (*Settings → SSH and GPG keys*) as a **Signing
+Key**, so commits show as *Verified*. A repository that does not want signing
+turns the check off with `git config hooks.requireSignature false`.
+`--no-verify` skips the hooks; the enforced gates are CI and the ruleset.
 
 ## 3. Pull requests
 

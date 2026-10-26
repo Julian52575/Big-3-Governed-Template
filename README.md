@@ -162,11 +162,12 @@ Entering the shell (`nix develop` / direnv):
    running socket or a `systemd --user podman.socket` if available, otherwise
    spawns a detached `podman system service` that is killed when the shell
    exits. Set `PODMAN_NO_SOCKET=1` to skip this (CI/headless).
-6. Points `git` at `.githooks/`, enabling the `commit-msg` hook (which execs
-   `.githooks/check-conventional-commit-msg`) that checks each message is a
-   [Conventional Commit](https://www.conventionalcommits.org/)
-   (`<type>[(scope)][!]: description`, subject lower-case, no trailing
-   period). Local feedback only — `git commit --no-verify` skips it.
+6. Points `git` at `.githooks/`, enabling the `commit-msg` hook. It checks
+   each message is a [Conventional Commit](https://www.conventionalcommits.org/)
+   (`<type>[(scope)][!]: description`, subject lower-case, no trailing period)
+   and that the commit is signed off (`git commit -s`) with signing configured
+   (opt out: `git config hooks.requireSignature false`). Local feedback only —
+   `git commit --no-verify` skips it.
 
 ## Just commands
 
@@ -278,11 +279,14 @@ Requests* in the UI):
 The script treats the security calls as best-effort — on a plan that doesn't
 include one it prints a warning and moves on.
 
-**Optional: require signed commits.** Add `{ "type": "required_signatures" }`
-to the `rules` array of `.github/rulesets/main.json` and re-run the script.
-Pair it with the local hook: each contributor runs
-`git config hooks.requireSignature true` so `.githooks/check-signature`
-rejects a commit before it is made (see CONTRIBUTING.md → Commit hooks).
+**Signed commits.** The local `commit-msg` hook already requires a
+sign-off and a signing key (`.githooks/check-signature`; opt out per clone
+with `git config hooks.requireSignature false`). To *enforce* it on GitHub,
+add `{ "type": "required_signatures" }` to the `rules` array of
+`.github/rulesets/main.json` and re-run the script. Merges through the GitHub
+UI and release-please commits are signed by GitHub; `ci-sast.yml`'s report
+commits are not, so leave `SAST_REPORT_TOKEN` unset or give that account a
+bypass if you enable the rule.
 
 #### BONUS: Org-level (can't be scripted per-repo)
 
@@ -439,7 +443,7 @@ docs/Troubleshoot.md      incident log: error, cause, solution
 .containerignore          build-context excludes (.dockerignore -> symlink)
 .githooks/commit-msg           dispatcher git runs; execs the check script below
 .githooks/check-conventional-commit-msg   local Conventional Commits check (enabled by the shellHook)
-.githooks/check-signature  opt-in sign-off + signing check (`git config hooks.requireSignature true`)
+.githooks/check-signature  sign-off + signing check (opt out: `git config hooks.requireSignature false`)
 .github/actions/setup-devshell/   composite action: checkout-then-install-Nix, shared by workflows
 .github/workflows/ci.yml       flake eval, Dockerfile/compose/workflow lint, zizmor, dependency audit, stack boot; `ci-required` gate
 .github/workflows/check-conventional-commit-pr-title.yml  PR title must be a Conventional Commit

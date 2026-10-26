@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Opt-in: require a sign-off (`Signed-off-by:` trailer) and commit signing
-# (`git commit -sS`). Enable per clone with
-#   git config hooks.requireSignature true
+# Require a sign-off (`Signed-off-by:` trailer) and commit signing
+# (`git commit -sS`). On by default; a repo that does not want it opts out with
+#   git config hooks.requireSignature false
 # Local feedback only -- `--no-verify` skips it; the enforced gate is the
 # ruleset's `required_signatures` rule. The commit does not exist yet when
 # commit-msg runs, so only the signing *config* can be checked.
 set -euo pipefail
 
-[ "$(git config --get hooks.requireSignature || true)" = "true" ] || exit 0
+[ "$(git config --get hooks.requireSignature || true)" = "false" ] && exit 0
 
 header="$(grep -vE '^[[:space:]]*(#|$)' "$1" | head -n1 || true)"
 case "$header" in
