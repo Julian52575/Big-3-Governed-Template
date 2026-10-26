@@ -6,7 +6,7 @@
 #   results.sarif   raw CodeQL SARIF (all languages merged into one runs[])
 #   findings.json   normalised finding list + counts by severity
 #   summary.md      human-readable digest -- also written to the run summary
-#   badge.svg       verdict badge, referenced by README.md via a relative path
+#   badge.svg       verdict badge, for README.md to embed by relative path
 #
 # Inputs (env):
 #   SARIF_DIR           dir holding the *.sarif from codeql-action/analyze (required)

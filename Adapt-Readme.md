@@ -28,7 +28,7 @@ what breaks if you skip it. Steps marked *(optional)* switch on extra features.
 
 | File | Replace | If you skip it |
 | ---- | ------- | -------------- |
-| `README.md` (top) | `Julian52575/Big-3-Governed-Template` in the badge URL; the title, intro, *Customising* section and © line | badge shows the template's score |
+| `README.md` (top) | `Julian52575/Big-3-Secure-Template` in the badge URL; the title, intro, *Customising* section and © line | badge shows the template's score |
 | `.github/ISSUE_TEMPLATE/config.yml` | `OWNER/REPO` in the security-advisory link | vulnerability reports go to the wrong repo |
 | `CODE_OF_CONDUCT.md` | `[INSERT CONTACT METHOD]` | nobody to report conduct issues to |
 | `release-please-config.json` | `"package-name": "REPO"`; `"release-type": "simple"` → your language (`node`, `python`, `rust`, …) so version files are bumped | releases work, but no package version file is updated |
@@ -127,7 +127,7 @@ rules in `AGENTS.md` and run `just lint-workflows`.
 1. Open a PR that closes an issue. `ci-required`, `conventional-title` and
    `linked-issue` must go green and block the merge until they do.
 2. Merge it. release-please opens a Release PR; merging that creates a tag,
-   and `release-to-ghcr.yml` pushes signed images. Verify one:
+   and `release-to-ghcr.yml` pushes signed images. Verify one (cosign v3+):
    ```bash
    cosign verify ghcr.io/<owner>/<repo>-api:<tag> \
      --certificate-identity-regexp 'https://github.com/<owner>/<repo>/' \

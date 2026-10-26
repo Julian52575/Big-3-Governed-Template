@@ -11,7 +11,7 @@
 # This file is for local development: web and backend build from their
 # Dev.Dockerfile and bind-mount their source, so edits apply without a
 # rebuild. Release images build from each folder's Dockerfile. After changing
-# a Dev.Dockerfile, run `just rm; just up -d` (podman-compose's `--build`
+# a Dev.Dockerfile, run `just rebuild <service>` (podman-compose's `--build`
 # often misses a change). Healthchecks poll every second so `up --wait` and
 # `depends_on` return as soon as a service is ready.
 
@@ -29,9 +29,8 @@ services:
       - --ping=true                 # /ping on the dashboard's `traefik` entrypoint, for the healthcheck
     # Published on 127.0.0.1 only: without an address, Docker and Podman
     # publish on every interface, which on a server exposes the stack -- and
-    # the unauthenticated dashboard -- to the network (puniemu found its
-    # database open this way). Set PROXY_BIND=0.0.0.0 to share the app on the
-    # LAN; the dashboard stays local.
+    # the unauthenticated dashboard -- to the network. Set PROXY_BIND=0.0.0.0
+    # to share the app on the LAN; the dashboard stays local.
     ports:
       - "${PROXY_BIND:-127.0.0.1}:${PROXY_PORT:-8000}:80"
       - "127.0.0.1:${PROXY_DASHBOARD_PORT:-8080}:8080"

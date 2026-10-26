@@ -43,8 +43,8 @@ rebuild service:
 nuke *args:
     #!/usr/bin/env bash
     set -euo pipefail
-    # A checkout on main or a release tag is usually a deployment: refuse
-    # (from puniemu). Override with NUKE_ANYWAY=1.
+    # A checkout on main or a release tag is usually a deployment: refuse.
+    # Override with NUKE_ANYWAY=1.
     if [[ -z "${NUKE_ANYWAY:-}" ]]; then
         branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
         tag="$(git describe --tags --exact-match 2>/dev/null || true)"

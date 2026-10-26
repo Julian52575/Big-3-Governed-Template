@@ -1,5 +1,5 @@
-# Minimal API image. python:*-slim is Debian-based and ships bash, so
-# `just sh api` gives you a real shell (unlike the scratch-based whoami).
+# Release image for the `backend` service. python:*-slim ships bash, so
+# `just sh backend` gives a real shell.
 FROM docker.io/library/python:3.12-slim
 
 WORKDIR /app

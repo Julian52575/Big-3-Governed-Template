@@ -6,7 +6,7 @@
 #   measures.json      raw metric values from the SonarQube Cloud API
 #   quality-gate.json  raw Quality Gate status + any failing conditions
 #   summary.md         human-readable digest -- also written to the run summary
-#   badge.svg          gate badge, referenced by README.md via a relative path
+#   badge.svg          gate badge, for README.md to embed by relative path
 #
 # Inputs (env):
 #   SONAR_TOKEN          analysis token; also used for the read-only API calls
