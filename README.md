@@ -181,70 +181,11 @@ Entering the shell (`nix develop` / direnv):
 On top of the dev-shell stack, this template ships **repository governance**. 
 It is all standard Git/GitHub configuration, no external services needed. 
 
-### Conventional Commits
-
-Commits and PR titles follow [Conventional Commits](https://www.conventionalcommits.org/):
-`<type>[(scope)][!]: description`, with the description starting lower-case and
-carrying no trailing period. Both ends enforce the **same rule set** — the same
-type list, the same optional scope and `!`, the same subject pattern.
-
-- **Local (advisory):** the `.githooks/commit-msg` hook — auto-enabled by the
-  flake `shellHook` on `nix develop`, which points `core.hooksPath` at
-  `.githooks/` — execs `.githooks/check-conventional-commit-msg`, which rejects
-  a malformed message as you write it. Bypassable with `git commit
-  --no-verify`, so it is only a convenience.
-- **CI (enforced):** `.github/workflows/check-conventional-commit-pr-title.yml`
-  validates the **PR title** via [`amannn/action-semantic-pull-request`](https://github.com/amannn/action-semantic-pull-request).
-  On a squash merge the PR title is the commit that lands on `main`, so this is
-  the real gate. A bad title is fixed by editing it in the GitHub UI (the check
-  re-runs on `edited`) — no history rewrite.
-
-Keep the two in sync when you customise: the type list lives in both
-`.githooks/check-conventional-commit-msg` and
-`.github/workflows/check-conventional-commit-pr-title.yml`.
-
-Make your developers refer to the [Conventional Commits Cheatsheet](https://gist.github.com/qoomon/5dfcdf8eec66a051ecd85625518cfd13#commit-message-formats)   
-or the [Official Summary](https://www.conventionalcommits.org/en/v1.0.0/#summary) for convenience. 
-
-### Issue templates
-
-`.github/ISSUE_TEMPLATE/` ships four [issue forms](https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/configuring-issue-templates-for-your-repository)
-— structured fields rather than a blank box — and `config.yml` turns off blank
-issues, so every issue arrives in one of these shapes. Each form auto-applies a
-type label plus `needs-triage`, and each opens with a "not a duplicate"
-pre-submit check.
-
-| Form | For | Key fields |
-| ---- | --- | ---------- |
-| **Feature** | a new capability or an enhancement | Problem (the need, not the solution), Proposed solution, Alternatives, rough scope |
-| **Bug** | incorrect behaviour in something that exists | What's wrong, Steps to reproduce (from a clean checkout), Expected vs actual, Environment (`git rev-parse HEAD`), Logs |
-| **R&D** | a research spike or open design question | Question/hypothesis, Definition of done, Context and constraints, rough scope |
-| **Debt** | it works, but the code or design carries a shortcut | The shortcut (and where), Cost it carries, Proposed cleanup, interest accrual |
-
-Security reports are routed away from public issues: `config.yml` links to
-**private vulnerability reporting** instead (replace `OWNER/REPO` after using the
-template).
-
-The forms are the front half of the workflow: an issue defines the *problem*, a
-PR closing it carries the *solution*. That split is why the PR template below can
-stay so small.
-
-### Pull request template
-
-`.github/PULL_REQUEST_TEMPLATE.md` pre-fills every new PR. It is deliberately
-short: the [issue forms](.github/ISSUE_TEMPLATE/) already capture the *problem*
-(what's wrong, repro, proposed change, alternatives), and the Conventional-Commit
-PR title already encodes the *type* of change. Repeating any of that in the PR
-body is noise. Every PR is expected to close an issue, so the template only asks
-for what a **reviewer** can't get from the linked issue or the diff:
-
-| Field | Why it's there |
-| ----- | -------------- |
-| `Closes #NNN` | Required. Links the issue and auto-closes it on merge. Branch and push first if you like, but the issue must exist before the PR is opened. |
-| What changed | One or two lines on the shape of the diff — the "why" stays in the issue. |
-| How it was verified | The steps a reviewer repeats to trust the change; not something the issue knows. |
-| Risk / rollback | Breaking changes, migrations, blast radius. "None" is a valid answer. |
-| Checklist | "meant to close an issue" plus tests / docs — the easily-forgotten parts. |
+The day-to-day rules — the issue → branch → PR chain, Conventional Commits,
+the issue forms, the PR template and every required check — live in
+**[CONTRIBUTING.md](CONTRIBUTING.md)**. The [Code of Conduct](CODE_OF_CONDUCT.md)
+is the Contributor Covenant; set its enforcement contact after using the
+template. This section covers the repository settings that enforce them.
 
 ### Branch ruleset & repository settings
 
@@ -424,7 +365,10 @@ api/                      `backend` image source (python:slim + stdlib app.py)
   registries.conf         unqualified image lookups -> docker.io
   policy.json             image trust policy (symlinked into ~ by the shell)
   storage.conf            generated per-machine on shell entry (gitignored)
-.env.example              copy to .env
+.env.example              template for .env (created by the shell on first entry)
+CONTRIBUTING.md           governance chain, conventions, PR gate, releasing
+CODE_OF_CONDUCT.md        Contributor Covenant
+docs/Troubleshoot.md      incident log: error, cause, solution
 .containerignore          build-context excludes (.dockerignore -> symlink)
 .githooks/commit-msg           dispatcher git runs; execs the check script below
 .githooks/check-conventional-commit-msg   local Conventional Commits check (enabled by the shellHook)
