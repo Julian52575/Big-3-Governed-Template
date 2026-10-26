@@ -55,3 +55,10 @@ describe this project's stack and rules.
 template's: the section above describes the template repository, not their
 project. Suggest they rewrite it for their project, keeping only the rules
 that still apply.
+
+**If the repository is not adapted yet** (`./adapt.py --workflow` reports
+failures, or template placeholders such as `OWNER/REPO` remain), recommend
+letting you guide them through [README-ADAPT.md](README-ADAPT.md). Then follow
+it step by step: explain each step, run `adapt.py` with them, and show every
+command before running it. Never ask for secret values in the chat; let the
+user type them into `adapt.py --gh-vars` themselves.
