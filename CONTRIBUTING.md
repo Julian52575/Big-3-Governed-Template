@@ -71,6 +71,7 @@ lives in both `.githooks/check-conventional-commit-msg` and
 | ----- | -------- | ----------------- |
 | `conventional-title` (advisory) | PR title (and a lone commit) is a Conventional Commit | — edit the title, it re-runs |
 | `ci-required` ← `devshell` | the flake evaluates | `nix flake check --no-build` |
+| `ci-required` ← `node` | each Node.js service lints, tests and builds | `npm run lint && npm test` in its folder |
 | `ci-required` ← `dockerfile-lint` | hadolint on every Dockerfile | `hadolint <file>` |
 | `ci-required` ← `compose-lint` | compose file resolves | `podman-compose config` |
 | `ci-required` ← `workflow-lint`, `zizmor` | workflows lint clean and pass the security audit | `just lint-workflows` |

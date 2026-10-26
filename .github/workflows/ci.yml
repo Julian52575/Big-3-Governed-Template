@@ -245,6 +245,43 @@ jobs:
           path: dependency-audit
           if-no-files-found: ignore
 
+  # Lint, test and build each Node.js service in its own folder.
+  node:
+    name: node (${{ matrix.service }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [backend, frontend] # CUSTOMISE: one entry per Node.js service
+    defaults:
+      run:
+        working-directory: ${{ matrix.service }}
+    steps:
+      - uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ${{ matrix.service }}/package-lock.json
+
+      - run: npm ci
+      - run: npm run lint
+      - name: Generate the Prisma client
+        if: hashFiles(format('{0}/prisma/schema.prisma', matrix.service)) != ''
+        run: npx prisma generate
+      - run: npm test
+      - name: Build
+        if: matrix.service == 'frontend'
+        run: npm run build
+
   # How the services work together: boots the whole compose stack and calls
   # every route through the proxy. CUSTOMISE the checks when you replace the
   # example services.
@@ -267,23 +304,26 @@ jobs:
         run: cp .env.example .env
 
       - name: Build and start the stack, waiting for healthchecks
-        run: docker compose up -d --build --wait --wait-timeout 180
+        run: docker compose up -d --build --wait --wait-timeout 300
 
       - name: Call every service through the proxy
         run: |
           set -euo pipefail
-          # Traefik picks up routes asynchronously; retry before failing.
+          # Traefik picks up routes asynchronously; retry before failing. $2 must
+          # appear in the body, or an unrouted /api would pass on the
+          # frontend's catch-all HTML.
           check() {
             for _ in $(seq 1 30); do
-              curl -fsS "$1" > /dev/null && { echo "ok    $1"; return 0; }
+              curl -fsS "$1" | grep -qF -- "$2" && { echo "ok    $1"; return 0; }
               sleep 1
             done
-            echo "::error::$1 did not respond"
+            echo "::error::$1 did not answer with '$2'"
             return 1
           }
-          check "$PROXY/"
-          check "$PROXY/api/health"
-          check "$DASHBOARD/api/rawdata"
+          check "$PROXY/" '<div id="root">'
+          check "$PROXY/api/health" '"status":"ok"'
+          check "$PROXY/api/items" '[' # reaches Postgres through Prisma
+          check "$DASHBOARD/api/rawdata" '"routers"'
 
       - name: Show logs on failure
         if: failure()
@@ -303,6 +343,7 @@ jobs:
       - compose-lint
       - workflow-lint
       - zizmor
+      - node
       - dependencies-audit
       - stack
     runs-on: ubuntu-latest

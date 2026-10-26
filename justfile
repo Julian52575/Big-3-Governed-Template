@@ -36,8 +36,15 @@ rm *args:
 
 # Rebuild one service from scratch and recreate it, leaving the rest running: `just rebuild backend`
 rebuild service:
+    #!/usr/bin/env bash
+    set -euo pipefail
     {{compose}} build --no-cache {{service}}
-    {{compose}} up -d --force-recreate --no-deps {{service}}
+    # via the container tool: podman-compose has no `rm`
+    {{tool}} ps -aq --filter "label=com.docker.compose.project.working_dir={{justfile_directory()}}" \
+        --filter "label=com.docker.compose.service={{service}}" | xargs -r {{tool}} rm -f >/dev/null
+    # a stale <service>-node-modules volume would hide the image's fresh dependencies
+    {{tool}} volume rm -f "{{project}}_{{service}}-node-modules" >/dev/null 2>&1 || true
+    {{compose}} up -d --no-deps {{service}}
 
 # Like `just rm`, but also delete named volumes -- wipes db data etc.
 nuke *args:
@@ -60,28 +67,29 @@ nuke *args:
     {{tool}} volume prune --force --filter "label=com.docker.compose.project={{project}}"
     echo "done"
 
-# (internal) hook run by `nuke` before anything is deleted, e.g. `just database-dump`
+# (internal) hook run by `nuke` before anything is deleted
 _pre-nuke:
-    @true
+    just database-dump
 
 # Show container status
 ps:
     {{compose}} ps
 
-# Follow logs, optionally for one service: `just logs web`
+# Follow logs, optionally for one service: `just logs frontend`
 logs *args:
     {{compose}} logs -f {{args}}
 
-# Run a command in a running service container: `just exec web ls`
+# Run a command in a running service container: `just exec frontend ls`
 exec service *cmd:
     #!/usr/bin/env bash
     set -euo pipefail
     cid="$(just _cid {{service}})"
     [ -n "$cid" ] || { echo "no running container for service '{{service}}'"; exit 1; }
     ti=-i; [ -t 0 ] && ti=-ti
-    exec {{tool}} exec $ti "$cid" {{cmd}}
+    shift # "$@" keeps each argument intact; {{cmd}} would re-split quoted ones
+    exec {{tool}} exec $ti "$cid" "$@"
 
-# Open an interactive shell in a service container: `just sh web`
+# Open an interactive shell in a service container: `just sh frontend`
 sh service:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -91,7 +99,7 @@ sh service:
     exec {{tool}} exec $ti "$cid" sh -c 'exec "$(command -v bash || command -v sh)"'
 
 # Detach with Ctrl-C (non-tty services) or ctrl-p ctrl-q; the container keeps running.
-# Attach this terminal to a running service's live stdio: `just attach web`
+# Attach this terminal to a running service's live stdio: `just attach frontend`
 attach service:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -111,49 +119,48 @@ lint-workflows:
     zizmor .github/
     check-jsonschema --builtin-schema vendor.github-workflows .github/workflows/*.yml
 
-#### Database (example)
+#### Database
 # Postgres backup/restore in pg_dump's custom format (compressed, restorable
-# with pg_restore), for a compose service named `db` with POSTGRES_USER and
-# POSTGRES_DB in .env. Uncomment once you add one, and make `_pre-nuke` run
-# `just database-dump` so `nuke` never deletes data without a backup.
+# with pg_restore) for the `db` service, using POSTGRES_USER / POSTGRES_DB
+# from .env. `nuke` dumps first through `_pre-nuke`.
 
-# # Dump the database to db_backup_<timestamp>.dump
-# database-dump:
-#     #!/usr/bin/env bash
-#     set -euo pipefail
-#     source <(just _ensure-db)
-#     # computed once, so the file written and the name printed always match
-#     out="db_backup_$(date +%Y%m%d_%H%M%S).dump"
-#     # via a temp file: a failed pg_dump must not leave an empty "backup"
-#     {{tool}} exec "$cid" pg_dump -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -Fc > "$out.part" \
-#         || { rm -f "$out.part"; exit 1; }
-#     mv "$out.part" "$out"
-#     echo "Dumped database into $out"
-#
-# # Restore a dump, replacing what it contains: `just database-pipe db_backup_x.dump`
-# database-pipe file:
-#     #!/usr/bin/env bash
-#     set -euo pipefail
-#     [[ -f "{{file}}" ]] || { echo "{{file}} not found" >&2; exit 1; }
-#     source <(just _ensure-db)
-#     {{tool}} exec -i "$cid" pg_restore -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" --clean --if-exists < "{{file}}"
-#     echo "Restored {{file}} into the database"
-#
-# # (internal) start `db` if it is down, wait for it, and print `cid=<id>`.
-# # A db started here is stopped again when the calling recipe exits.
-# _ensure-db:
-#     #!/usr/bin/env bash
-#     set -euo pipefail
-#     cid="$(just _cid db)"
-#     if [[ -z "$cid" ]]; then
-#         echo "db is down -- starting it" >&2
-#         {{compose}} up -d db >&2
-#         for _ in $(seq 1 30); do
-#             cid="$(just _cid db)"
-#             [[ -n "$cid" ]] && {{tool}} exec "$cid" pg_isready -U "${POSTGRES_USER}" >/dev/null 2>&1 && break
-#             sleep 1
-#         done
-#         echo "trap '{{tool}} stop $cid >/dev/null || true' EXIT"
-#     fi
-#     [[ -n "$cid" ]] || { echo "could not find the db container" >&2; exit 1; }
-#     echo "cid=$cid"
+# Dump the database to db_backup_<timestamp>.dump
+database-dump:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    source <(just _ensure-db)
+    # computed once, so the file written and the name printed always match
+    out="db_backup_$(date +%Y%m%d_%H%M%S).dump"
+    # via a temp file: a failed pg_dump must not leave an empty "backup"
+    {{tool}} exec "$cid" pg_dump -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -Fc > "$out.part" \
+        || { rm -f "$out.part"; exit 1; }
+    mv "$out.part" "$out"
+    echo "Dumped database into $out"
+
+# Restore a dump, replacing what it contains: `just database-pipe db_backup_x.dump`
+database-pipe file:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    [[ -f "{{file}}" ]] || { echo "{{file}} not found" >&2; exit 1; }
+    source <(just _ensure-db)
+    {{tool}} exec -i "$cid" pg_restore -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" --clean --if-exists < "{{file}}"
+    echo "Restored {{file}} into the database"
+
+# (internal) start `db` if it is down, wait for it, and print `cid=<id>`.
+# A db started here is stopped again when the calling recipe exits.
+_ensure-db:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cid="$(just _cid db)"
+    if [[ -z "$cid" ]]; then
+        echo "db is down -- starting it" >&2
+        {{compose}} up -d db >&2
+        for _ in $(seq 1 30); do
+            cid="$(just _cid db)"
+            [[ -n "$cid" ]] && {{tool}} exec "$cid" pg_isready -U "${POSTGRES_USER}" >/dev/null 2>&1 && break
+            sleep 1
+        done
+        echo "trap '{{tool}} stop $cid >/dev/null || true' EXIT"
+    fi
+    [[ -n "$cid" ]] || { echo "could not find the db container" >&2; exit 1; }
+    echo "cid=$cid"

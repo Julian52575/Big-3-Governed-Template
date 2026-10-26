@@ -7,7 +7,7 @@ name: release-to-ghcr
 #   workflow_dispatch   -> :<input tag> only (never touches :latest)
 #
 # Image: ghcr.io/<owner>/<repo>-<matrix.image>, lower-cased.
-# Verify: cosign verify ghcr.io/<owner>/<repo>-api:<tag> \
+# Verify: cosign verify ghcr.io/<owner>/<repo>-backend:<tag> \
 #   --certificate-identity-regexp 'https://github.com/<owner>/<repo>/' \
 #   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 
@@ -40,10 +40,10 @@ jobs:
       matrix:
         # CUSTOMISE: one entry per image; `context` is its build directory.
         include:
-          - image: api
-            context: api
-          - image: web
-            context: web
+          - image: backend
+            context: backend
+          - image: frontend
+            context: frontend
     steps:
       - uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
         with:

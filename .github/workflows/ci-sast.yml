@@ -92,9 +92,8 @@ jobs:
         if: needs.guard.outputs.run == 'true'
         uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         with:
-          # CUSTOMISE: add your languages, e.g. `actions, python, javascript-typescript`.
-          # `actions` (the workflows themselves) is always valid here.
-          languages: actions
+          # CUSTOMISE: one entry per language in the repo.
+          languages: actions, javascript-typescript
           build-mode: none
           config-file: .sast/codeql-config.yml
 

@@ -34,7 +34,7 @@ Runs with `build-mode: none` and `upload: never`, so it needs neither GitHub
 Advanced Security nor code scanning. The job fails on any **error**-severity
 result; warnings and notes are only reported.
 
-- **Languages:** `languages:` in `ci-sast.yml` (ships with `actions`). Compiled
+- **Languages:** `languages:` in `ci-sast.yml` (ships with `actions, javascript-typescript`). Compiled
   languages may need another
   [build mode](https://docs.github.com/en/code-security/code-scanning/creating-an-advanced-setup-for-code-scanning/codeql-code-scanning-for-compiled-languages).
 - **Paths and query suite:** [`codeql-config.yml`](codeql-config.yml)

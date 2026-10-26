@@ -21,6 +21,7 @@
             openssl # the shellHook fills `change-me-*` secrets in .env
             podman-compose
             curl # the shellHook pings the podman API socket with it
+            nodejs_24 # npm for frontend/ and backend/
             # workflow linting (`just lint-workflows`)
             actionlint
             shellcheck # actionlint uses it to lint `run:` scripts
@@ -41,6 +42,16 @@
             # --- .env ----------------------------------------------------
             if [ ! -e .env ] && [ -f .env.example ]; then
               cp .env.example .env && echo "env: created .env from .env.example"
+            fi
+            # Carry over variables added to .env.example since .env was made;
+            # podman-compose passes an unset variable through literally.
+            if [ -f .env ] && [ -f .env.example ]; then
+              for key in $(sed -nE 's/^([A-Za-z_][A-Za-z0-9_]*)=.*/\1/p' .env.example); do
+                if ! grep -qE "^$key=" .env; then
+                  grep -E "^$key=" .env.example >> .env
+                  echo "env: added $key from .env.example"
+                fi
+              done
             fi
             # Any value starting with `change-me-` is a placeholder secret:
             # replace it once, so re-entering the shell never rotates it.
