@@ -96,8 +96,8 @@ set yet**; set ones are left alone. Blank input skips one.
 `GITHUB_TOKEN` is provided by Actions; image pushes to GHCR and the Scorecard
 workflow use it.
 
-`--governance` runs `scripts/apply-governance.sh`: the branch ruleset from
-`.github/rulesets/main.json`, squash-only merges, read-only default
+`--governance` runs `scripts/apply-governance.sh`: the branch rulesets from
+`.github/rulesets/` (`main.json`, `all-branches.json`), squash-only merges, read-only default
 `GITHUB_TOKEN`, Dependabot, secret scanning, private vulnerability reporting
 and the issue labels. Without it, `main` is unprotected and `ci-required`
 does not block a merge.
