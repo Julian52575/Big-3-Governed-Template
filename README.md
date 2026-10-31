@@ -148,7 +148,7 @@ Windows).
    ([Podman socket](https://docs.podman.io/en/latest/markdown/podman-system-service.1.html)).
 
 7. **Enables the git hooks** in `.githooks/` (Conventional Commit, signed
-   and signed-off commits — see [CONTRIBUTING.md](CONTRIBUTING.md)):
+   and signed-off commits, no shadow merges between open PRs — see [CONTRIBUTING.md](CONTRIBUTING.md)):
 
    ```bash
    git config --local core.hooksPath .githooks
@@ -233,7 +233,7 @@ frontend/                              React + Vite placeholder (Vitest, oxlint)
 backend/                               Express + Prisma placeholder (Jest, supertest, oxlint)
 .config/podman/                        rootless Podman config (storage.conf is generated)
 .env.example                           template for .env
-.githooks/                             commit-msg checks
+.githooks/                             commit-msg checks, shadow-merge guard
 .github/workflows/, .github/actions/   CI, release and audit workflows
 .github/rulesets/                      branch rulesets (main, all branches)
 .github/ISSUE_TEMPLATE/, PULL_REQUEST_TEMPLATE.md

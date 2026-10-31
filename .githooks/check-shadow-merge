@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+# Reject a "shadow 3-way merge": branch B, with an open PR into T, picking up
+# the commits of branch A, which has its own open PR into T. Reviewers of B's
+# PR then approve A's unreviewed code, and the two PRs no longer land
+# independently. Either A's PR is closed (B carries it) or each lands alone.
+#
+# Usage: check-shadow-merge <branch B> <commit B would point to>
+# Called by pre-push (every pushed branch) and pre-merge-commit (local merge).
+# Opt out with  git config hooks.preventShadowMerge false
+# Fails open: without gh, auth or network there is nothing to compare against.
+set -euo pipefail
+
+[ "$(git config --get hooks.preventShadowMerge || true)" = "false" ] && exit 0
+command -v gh >/dev/null 2>&1 || exit 0
+
+branch="$1" tip="$2"
+
+# One line per open PR: number, head branch, base branch, head commit.
+prs="$(gh pr list --state open --limit 200 \
+  --json number,headRefName,baseRefName,headRefOid \
+  --jq '.[] | [.number, .headRefName, .baseRefName, .headRefOid] | @tsv' \
+  2>/dev/null)" || exit 0
+
+status=0
+while IFS=$'\t' read -r b_num b_head base _; do
+  [ "$b_head" = "$branch" ] || continue
+  while IFS=$'\t' read -r a_num a_head a_base a_oid; do
+    if [ "$a_base" != "$base" ] || [ "$a_head" = "$branch" ]; then continue; fi
+    # A commit missing locally cannot be part of B's history.
+    git cat-file -e "$a_oid^{commit}" 2>/dev/null || continue
+    git merge-base --is-ancestor "$a_oid" "$tip" || continue
+    # Already in the base: A is landed history, not a shadow merge.
+    if git rev-parse -q --verify "origin/$base" >/dev/null &&
+      git merge-base --is-ancestor "$a_oid" "origin/$base"; then
+      continue
+    fi
+    status=1
+    cat >&2 <<MSG
+✗ shadow 3-way merge: '$branch' contains the commits of '$a_head'
+  PR #$a_num  $a_head -> $base
+  PR #$b_num  $branch -> $base
+  Both PRs target '$base'; they must land separately or one must be closed.
+
+  Undo the merge on '$branch' (a merge in progress: git merge --abort):
+    git reset --hard origin/$branch
+  Then pick one:
+    land #$a_num first, then update #$b_num:
+      gh pr merge $a_num --squash && gh pr update-branch $b_num
+    close #$a_num and let #$b_num carry its changes (keep the merge):
+      gh pr close $a_num --comment "Superseded by #$b_num"
+    stack #$b_num on top of #$a_num instead (keep the merge):
+      gh pr edit $b_num --base $a_head
+  Inspect both:  gh pr view $a_num; gh pr view $b_num
+
+MSG
+  done <<<"$prs"
+done <<<"$prs"
+exit $status
