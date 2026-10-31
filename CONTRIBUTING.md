@@ -63,6 +63,11 @@ lives in both `.githooks/check-conventional-commit-msg` and
 - Fill in the template and link the issue with `Closes #NNN`. The PR title
   becomes the squash commit on `main`.
 - 1 approval (plus code owners where set) and every thread resolved.
+- Never merge another open PR's branch into yours when both target the same
+  branch: land them separately, close one, or stack yours with
+  `gh pr edit <yours> --base <other branch>`. The `pre-push`,
+  `pre-merge-commit` and `pre-commit` hooks refuse it and print the `gh` commands (needs an
+  authenticated `gh`; opt out with `git config hooks.preventShadowMerge false`).
 - The ruleset requires a single check, `ci-required`, on a branch up to date
   with `main`. It aggregates the `ci.yml` jobs below; `conventional-title`
   runs too but is advisory.

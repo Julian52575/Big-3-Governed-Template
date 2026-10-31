@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Git runs the hook only under this exact filename. Fast-forward merges skip
+# it; pre-push catches those.
+dir="$(dirname "$0")"
+branch="$(git symbolic-ref --short -q HEAD)" || exit 0
+# An auto-committing merge has no MERGE_HEAD yet; git names what it merges
+# in GIT_REFLOG_ACTION ("merge <commit>...").
+if git rev-parse -q --verify MERGE_HEAD >/dev/null; then
+  heads=(MERGE_HEAD)
+else
+  read -ra heads <<<"${GIT_REFLOG_ACTION#merge }"
+fi
+status=0
+for head in "${heads[@]}"; do
+  sha="$(git rev-parse -q --verify "$head^{commit}")" || continue
+  "$dir/check-shadow-merge" "$branch" "$sha" || status=1
+done
+exit $status

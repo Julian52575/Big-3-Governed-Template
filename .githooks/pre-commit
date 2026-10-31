@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Git runs the hook only under this exact filename. Concluding a merge with
+# `git commit` (after a conflict or --no-commit) skips pre-merge-commit.
+if git rev-parse -q --verify MERGE_HEAD >/dev/null; then
+  exec "$(dirname "$0")/pre-merge-commit"
+fi
