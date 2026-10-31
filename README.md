@@ -186,7 +186,10 @@ It is safe to re-run, and sets:
   required check `ci-required` on an up-to-date branch, linear history, no force-push or deletion, no bypass. It can also be
   imported by hand: *Settings → Rules → Rulesets → Import*.
   See [About rulesets](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets).
-- **Merges:** squash only, PR title as the commit, branches auto-deleted,
+- **All-branches ruleset** from `.github/rulesets/all-branches.json`: squash is
+  the only PR merge method on every branch.
+- **Merges:** squash only (no merge commits), PR title and commit details as
+  the commit, update-branch always suggested, branches auto-deleted,
   auto-merge allowed.
 - **Actions:** read-only default `GITHUB_TOKEN`.
 - **Security** (best-effort, depends on your plan): Dependabot alerts and
@@ -232,7 +235,7 @@ backend/                               Express + Prisma placeholder (Jest, super
 .env.example                           template for .env
 .githooks/                             commit-msg checks
 .github/workflows/, .github/actions/   CI, release and audit workflows
-.github/rulesets/main.json             branch ruleset
+.github/rulesets/                      branch rulesets (main, all branches)
 .github/ISSUE_TEMPLATE/, PULL_REQUEST_TEMPLATE.md
 .sast/                                 SAST config, report scripts, committed reports, OpenSSF summary
 scripts/apply-governance.sh            applies the repository settings

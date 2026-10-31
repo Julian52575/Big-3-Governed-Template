@@ -13,8 +13,9 @@
 #   scripts/apply-governance.sh owner/name     # act on an explicit repo
 #
 # What it sets:
-#   - branch ruleset on the default branch, imported from .github/rulesets/main.json
-#   - merge button: squash only, PR title as the commit subject
+#   - branch rulesets from .github/rulesets/: main.json (default branch) and
+#     all-branches.json (squash-only PR merges on every branch)
+#   - merge button: squash only, PR title + commit details as the message
 #   - auto-delete merged branches, always suggest updating PR branches, auto-merge
 #   - Actions: default GITHUB_TOKEN permission read-only (workflows opt in)
 #   - Dependabot alerts + automated security fixes
@@ -29,10 +30,13 @@ set -euo pipefail
 
 repo="${1:-$(gh repo view --json nameWithOwner --jq .nameWithOwner)}"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ruleset_file="$script_dir/../.github/rulesets/main.json"
+ruleset_dir="$script_dir/../.github/rulesets"
+ruleset_files=("$ruleset_dir/main.json" "$ruleset_dir/all-branches.json")
 
 echo "==> Target repo: $repo"
-[ -f "$ruleset_file" ] || { echo "missing $ruleset_file" >&2; exit 1; }
+for f in "${ruleset_files[@]}"; do
+  [ -f "$f" ] || { echo "missing $f" >&2; exit 1; }
+done
 
 # Best-effort wrapper: warn instead of aborting the whole script.
 try() {
@@ -41,15 +45,18 @@ try() {
   fi
 }
 
-echo "==> Branch ruleset on the default branch"
-# Delete an existing ruleset of the same name so this stays repeatable.
-existing="$(gh api "repos/$repo/rulesets" --jq '.[] | select(.name=="Auto Big-3-Governance main ruleset") | .id' 2>/dev/null || true)"
-if [ -n "$existing" ]; then
-  echo "    replacing existing ruleset id $existing"
-  gh api --method DELETE "repos/$repo/rulesets/$existing" >/dev/null
-fi
-gh api --method POST "repos/$repo/rulesets" --input "$ruleset_file" >/dev/null
-echo "    created ruleset 'Auto Big-3-Governance main ruleset'"
+echo "==> Branch rulesets"
+for f in "${ruleset_files[@]}"; do
+  name="$(jq -r .name "$f")"
+  # Delete an existing ruleset of the same name so this stays repeatable.
+  existing="$(gh api "repos/$repo/rulesets" --jq ".[] | select(.name==\"$name\") | .id" 2>/dev/null || true)"
+  if [ -n "$existing" ]; then
+    echo "    replacing existing ruleset id $existing"
+    gh api --method DELETE "repos/$repo/rulesets/$existing" >/dev/null
+  fi
+  gh api --method POST "repos/$repo/rulesets" --input "$f" >/dev/null
+  echo "    created ruleset '$name'"
+done
 
 echo "==> Pull-request / merge settings"
 gh api --method PATCH "repos/$repo" \
@@ -57,11 +64,11 @@ gh api --method PATCH "repos/$repo" \
   -F allow_merge_commit=false \
   -F allow_rebase_merge=false \
   -f squash_merge_commit_title=PR_TITLE \
-  -f squash_merge_commit_message=BLANK \
+  -f squash_merge_commit_message=COMMIT_MESSAGES \
   -F delete_branch_on_merge=true \
   -F allow_update_branch=true \
   -F allow_auto_merge=true >/dev/null
-echo "    squash-only; PR title becomes the commit subject"
+echo "    squash-only; PR title + commit details become the commit message"
 
 echo "==> Actions: default GITHUB_TOKEN permission read-only"
 try gh api --method PUT "repos/$repo/actions/permissions/workflow" \
