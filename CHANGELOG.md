@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.1.0](https://github.com/Julian52575/Big-3-Governed-Template/compare/1.0.0...1.1.0) (2026-10-31)
+
+
+### Features
+
+* **githooks:** refuse shadow 3-way merges between open PRs ([3c1b0f7](https://github.com/Julian52575/Big-3-Governed-Template/commit/3c1b0f79782000ccb90b4a49438a789fa3cc0004))
+* **governance:** squash-only merges on all branches, PR title and commit details as message ([7dfa261](https://github.com/Julian52575/Big-3-Governed-Template/commit/7dfa26165836c195e91dc2385a0cd862bbb89df8))
+* **nix:** warn when the nix store or podman storage exceeds 10 GiB ([ed6a601](https://github.com/Julian52575/Big-3-Governed-Template/commit/ed6a6011ef24b08cc4313952cd337d63bee63fd8))
+
+
+### Documentation
+
+* **adapt-report:** add feedback template, README and first two reports ([8d01a90](https://github.com/Julian52575/Big-3-Governed-Template/commit/8d01a90d877787eec2da0235f2c6352b095fb4e5))
+
 ## 1.0.0 (2026-10-26)
 
 
