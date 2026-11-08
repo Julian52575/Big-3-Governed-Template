@@ -147,9 +147,10 @@
                   echo "podman: warning -- storage at $podman_dir is $((podman_kb / 1048576)) GiB; reclaim with 'podman system prune -a' (outside this shell for the host store)" >&2
                 fi
               done
-              nix_kb=$(du -sk /nix/store 2>/dev/null | cut -f1)
-              if [ "''${nix_kb:-0}" -ge 10485760 ] 2>/dev/null; then
-                echo "nix: warning -- /nix/store is $((nix_kb / 1048576)) GiB; reclaim with 'nix-collect-garbage -d'" >&2
+              # Sum the sizes Nix already recorded (~3s); `du` walks every file (~30s on WSL2).
+              nix_bytes=$(nix path-info --all --json 2>/dev/null | jq '(.info // .) | [.[].narSize] | add' 2>/dev/null)
+              if [ "''${nix_bytes:-0}" -ge 10737418240 ] 2>/dev/null; then
+                echo "nix: warning -- /nix/store is $((nix_bytes / 1073741824)) GiB; reclaim with 'nix-collect-garbage -d'" >&2
               fi
 
               printf '%s\n' \
